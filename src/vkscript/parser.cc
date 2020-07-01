@@ -95,6 +95,8 @@ Result Parser::GenerateDefaultPipeline(const SectionParser& section_parser) {
   if (!r.IsSuccess())
     return r;
 
+    // TODO Ari
+#if 0
   // Generate and add a framebuffer
   auto color_buf = pipeline->GenerateDefaultColorAttachmentBuffer();
   r = pipeline->AddColorAttachment(color_buf.get(), 0, 0);
@@ -104,6 +106,7 @@ Result Parser::GenerateDefaultPipeline(const SectionParser& section_parser) {
   r = script_->AddBuffer(std::move(color_buf));
   if (!r.IsSuccess())
     return r;
+#endif
 
   return {};
 }
@@ -209,6 +212,8 @@ Result Parser::ProcessRequireBlock(const SectionParser::Section& section) {
       script_->RegisterFormat(std::move(fmt));
       script_->RegisterType(std::move(type));
 
+      // TODO Ari
+#if 0
       Result r = pipeline->SetDepthStencilBuffer(depth_buf.get());
       if (!r.IsSuccess())
         return r;
@@ -216,6 +221,7 @@ Result Parser::ProcessRequireBlock(const SectionParser::Section& section) {
       r = script_->AddBuffer(std::move(depth_buf));
       if (!r.IsSuccess())
         return r;
+#endif
 
     } else if (str == "fence_timeout") {
       token = tokenizer.NextToken();

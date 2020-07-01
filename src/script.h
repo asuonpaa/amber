@@ -122,10 +122,27 @@ class Script : public RecipeImpl {
     return {};
   }
 
+  /// Adds |image| to the list of known image. The |image| must have a
+  /// unique name over all images in the script.
+  Result AddImage(std::unique_ptr<Image> image) {
+    if (name_to_image_.count(image->GetName()) > 0)
+      return Result("duplicate image name provided");
+
+    images_.push_back(std::move(image));
+    name_to_image_[images_.back()->GetName()] = images_.back().get();
+    return {};
+  }
+
   /// Retrieves the buffer with |name|, |nullptr| if not found.
   Buffer* GetBuffer(const std::string& name) const {
     auto it = name_to_buffer_.find(name);
     return it == name_to_buffer_.end() ? nullptr : it->second;
+  }
+
+  /// Retrieves the buffer with |name|, |nullptr| if not found.
+  Image* GetImage(const std::string& name) const {
+    auto it = name_to_image_.find(name);
+    return it == name_to_image_.end() ? nullptr : it->second;
   }
 
   /// Retrieves a list of all buffers.
@@ -260,12 +277,14 @@ class Script : public RecipeImpl {
   std::string spv_env_;
   std::map<std::string, Shader*> name_to_shader_;
   std::map<std::string, Buffer*> name_to_buffer_;
+  std::map<std::string, Image*> name_to_image_;
   std::map<std::string, Sampler*> name_to_sampler_;
   std::map<std::string, Pipeline*> name_to_pipeline_;
   std::map<std::string, std::unique_ptr<type::Type>> name_to_type_;
   std::vector<std::unique_ptr<Shader>> shaders_;
   std::vector<std::unique_ptr<Command>> commands_;
   std::vector<std::unique_ptr<Buffer>> buffers_;
+  std::vector<std::unique_ptr<Image>> images_;
   std::vector<std::unique_ptr<Sampler>> samplers_;
   std::vector<std::unique_ptr<Pipeline>> pipelines_;
   std::vector<std::unique_ptr<type::Type>> types_;

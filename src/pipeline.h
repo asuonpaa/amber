@@ -180,6 +180,7 @@ class Pipeline {
   ///
   /// The BufferInfo will have either (descriptor_set, binding) or location
   /// attached.
+  // TODO Ari: Rename to BindingInfo and support both buffers and images??
   struct BufferInfo {
     BufferInfo() = default;
     explicit BufferInfo(Buffer* buf) : buffer(buf) {}
@@ -282,9 +283,9 @@ class Pipeline {
   const std::vector<BufferInfo>& GetColorAttachments() const {
     return color_attachments_;
   }
-  /// Adds |buf| as a colour attachment at |location| in the pipeline.
+  /// Adds |img| as a colour attachment at |location| in the pipeline.
   /// Uses |base_mip_level| as the mip level for output.
-  Result AddColorAttachment(Buffer* buf,
+  Result AddColorAttachment(Image* img,
                             uint32_t location,
                             uint32_t base_mip_level);
   /// Retrieves the location that |buf| is bound to in the pipeline. The
@@ -292,8 +293,8 @@ class Pipeline {
   /// something goes wrong.
   Result GetLocationForColorAttachment(Buffer* buf, uint32_t* loc) const;
 
-  /// Sets |buf| as the depth/stencil buffer for this pipeline.
-  Result SetDepthStencilBuffer(Buffer* buf);
+  /// Sets |img| as the depth/stencil buffer for this pipeline.
+  Result SetDepthStencilBuffer(Image* img);
   /// Returns information on the depth/stencil buffer bound to the pipeline. If
   /// no depth buffer is bound the |BufferInfo::buffer| parameter will be
   /// nullptr.
@@ -332,6 +333,7 @@ class Pipeline {
   void AddBuffer(Buffer* buf, BufferType type, uint32_t arg_no);
   /// Returns information on all buffers in this pipeline.
   const std::vector<BufferInfo>& GetBuffers() const { return buffers_; }
+  // TODO Ari: Clear both buffer and image bindings?
   /// Clears all buffer bindings for given |descriptor_set| and |binding|.
   void ClearBuffers(uint32_t descriptor_set, uint32_t binding);
 

@@ -554,6 +554,7 @@ int main(int argc, const char** argv) {
   while (options.image_filenames.size() > options.fb_names.size())
     options.fb_names.push_back(kGeneratedColorBuffer);
 
+  // TODO Ari: Use ImageInfo instead?
   for (const auto& fb_name : options.fb_names) {
     amber::BufferInfo buffer_info;
     buffer_info.buffer_name = fb_name;

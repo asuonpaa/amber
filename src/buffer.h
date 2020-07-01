@@ -29,8 +29,11 @@
 
 namespace amber {
 
+// TODO Ari: Remove this.
 class Sampler;
 
+// TODO Ari: The comment is misleading: this is only used when binding. And some
+// of these are moving to a new ImageType.
 /// Types of buffers which can be created.
 enum class BufferType : int8_t {
   /// Unknown buffer type
@@ -79,44 +82,10 @@ class Buffer {
 
   ~Buffer();
 
-  /// Sets the Format of the buffer to |format|.
-  void SetFormat(Format* format) {
-    format_is_default_ = false;
-    format_ = format;
-  }
-  /// Returns the Format describing the buffer data.
-  Format* GetFormat() const { return format_; }
-
-  /// Sets the sampler used with buffer of combined image sampler type.
-  void SetSampler(Sampler* sampler) { sampler_ = sampler; }
-  /// Returns the sampler of combined image sampler buffer.
-  Sampler* GetSampler() const { return sampler_; }
-
-  void SetFormatIsDefault(bool val) { format_is_default_ = val; }
-  bool FormatIsDefault() const { return format_is_default_; }
-
   /// Sets the buffer |name|.
   void SetName(const std::string& name) { name_ = name; }
   /// Returns the name of the buffer.
   std::string GetName() const { return name_; }
-
-  /// Gets the number of elements this buffer is wide.
-  uint32_t GetWidth() const { return width_; }
-  /// Set the number of elements wide for the buffer.
-  void SetWidth(uint32_t width) { width_ = width; }
-  /// Get the number of elements this buffer is high.
-  uint32_t GetHeight() const { return height_; }
-  /// Set the number of elements high for the buffer.
-  void SetHeight(uint32_t height) { height_ = height; }
-  /// Get the number of elements this buffer is deep.
-  uint32_t GetDepth() const { return depth_; }
-  /// Set the number of elements this buffer is deep.
-  void SetDepth(uint32_t depth) { depth_ = depth; }
-
-  /// Get the image dimensionality.
-  ImageDimension GetImageDimension() const { return image_dim_; }
-  /// Set the image dimensionality.
-  void SetImageDimension(ImageDimension dim) { image_dim_ = dim; }
 
   // | ---------- Element ---------- | ElementCount == 1
   // | Value | Value | Value | Value |   ValueCount == 4
@@ -129,32 +98,6 @@ class Buffer {
   void SetElementCount(uint32_t count) { element_count_ = count; }
   /// Returns the number of elements in the buffer.
   uint32_t ElementCount() const { return element_count_; }
-
-  /// Sets the number of values in the buffer.
-  void SetValueCount(uint32_t count) {
-    if (!format_) {
-      element_count_ = 0;
-      return;
-    }
-    if (format_->IsPacked()) {
-      element_count_ = count;
-    } else {
-      // This divides by the needed input values, not the values per element.
-      // The assumption being the values coming in are read from the input,
-      // where components are specified. The needed values maybe less then the
-      // values per element.
-      element_count_ = count / format_->InputNeededPerElement();
-    }
-  }
-  /// Returns the number of values in the buffer.
-  uint32_t ValueCount() const {
-    if (!format_)
-      return 0;
-    // Packed formats are single values.
-    if (format_->IsPacked())
-      return element_count_;
-    return element_count_ * format_->InputNeededPerElement();
-  }
 
   /// Returns the number of bytes needed for the data in the buffer.
   uint32_t GetSizeInBytes() const {
@@ -203,19 +146,6 @@ class Buffer {
   /// Writes |src| data into buffer at |offset|.
   Result SetDataFromBuffer(const Buffer* src, uint32_t offset);
 
-  /// Sets the number of mip levels for a buffer used as a color buffer
-  /// or a texture.
-  void SetMipLevels(uint32_t mip_levels) { mip_levels_ = mip_levels; }
-
-  /// Returns the number of mip levels.
-  uint32_t GetMipLevels() const { return mip_levels_; }
-
-  /// Sets the number of samples.
-  void SetSamples(uint32_t samples) { samples_ = samples; }
-
-  /// Returns the number of samples.
-  uint32_t GetSamples() const { return samples_; }
-
   /// Returns a pointer to the internal storage of the buffer.
   std::vector<uint8_t>* ValuePtr() { return &bytes_; }
   /// Returns a pointer to the internal storage of the buffer.
@@ -232,6 +162,74 @@ class Buffer {
 
   /// Succeeds only if both buffer contents are equal
   Result IsEqual(Buffer* buffer) const;
+
+  // TODO Ari: Move all the public methods below to the Image class?
+  /// Sets the Format of the buffer to |format|.
+  void SetFormat(Format* format) {
+    format_is_default_ = false;
+    format_ = format;
+  }
+  /// Returns the Format describing the buffer data.
+  Format* GetFormat() const { return format_; }
+
+  /// Sets the sampler used with buffer of combined image sampler type.
+  void SetSampler(Sampler* sampler) { sampler_ = sampler; }
+  /// Returns the sampler of combined image sampler buffer.
+  Sampler* GetSampler() const { return sampler_; }
+
+  void SetFormatIsDefault(bool val) { format_is_default_ = val; }
+  bool FormatIsDefault() const { return format_is_default_; }
+
+  /// Sets the number of values in the buffer.
+  void SetValueCount(uint32_t count) {
+    if (!format_) {
+      element_count_ = 0;
+      return;
+    }
+    if (format_->IsPacked()) {
+      element_count_ = count;
+    } else {
+      // This divides by the needed input values, not the values per element.
+      // The assumption being the values coming in are read from the input,
+      // where components are specified. The needed values maybe less then the
+      // values per element.
+      element_count_ = count / format_->InputNeededPerElement();
+    }
+  }
+  /// Returns the number of values in the buffer.
+  uint32_t ValueCount() const {
+    if (!format_)
+      return 0;
+    // Packed formats are single values.
+    if (format_->IsPacked())
+      return element_count_;
+    return element_count_ * format_->InputNeededPerElement();
+  }
+  /// Gets the number of elements this buffer is wide.
+  uint32_t GetWidth() const { return width_; }
+  /// Set the number of elements wide for the buffer.
+  void SetWidth(uint32_t width) { width_ = width; }
+  /// Get the number of elements this buffer is high.
+  uint32_t GetHeight() const { return height_; }
+  /// Set the number of elements high for the buffer.
+  void SetHeight(uint32_t height) { height_ = height; }
+  /// Get the number of elements this buffer is deep.
+  uint32_t GetDepth() const { return depth_; }
+  /// Set the number of elements this buffer is deep.
+  void SetDepth(uint32_t depth) { depth_ = depth; }
+  /// Get the image dimensionality.
+  ImageDimension GetImageDimension() const { return image_dim_; }
+  /// Set the image dimensionality.
+  void SetImageDimension(ImageDimension dim) { image_dim_ = dim; }
+  /// Sets the number of mip levels for a buffer used as a color buffer
+  /// or a texture.
+  void SetMipLevels(uint32_t mip_levels) { mip_levels_ = mip_levels; }
+  /// Returns the number of mip levels.
+  uint32_t GetMipLevels() const { return mip_levels_; }
+  /// Sets the number of samples.
+  void SetSamples(uint32_t samples) { samples_ = samples; }
+  /// Returns the number of samples.
+  uint32_t GetSamples() const { return samples_; }
 
   /// Returns a histogram
   std::vector<uint64_t> GetHistogramForChannel(uint32_t channel,
@@ -263,13 +261,14 @@ class Buffer {
   /// over all ubo, ssbo size and ssbo subdata size calls.
   uint32_t max_size_in_bytes_ = 0;
   uint32_t element_count_ = 0;
+  std::vector<uint8_t> bytes_;
+  // TODO Ari: Move all below to Image class
   uint32_t width_ = 1;
   uint32_t height_ = 1;
   uint32_t depth_ = 1;
   uint32_t mip_levels_ = 1;
   uint32_t samples_ = 1;
   bool format_is_default_ = false;
-  std::vector<uint8_t> bytes_;
   Format* format_ = nullptr;
   Sampler* sampler_ = nullptr;
   ImageDimension image_dim_ = ImageDimension::kUnknown;

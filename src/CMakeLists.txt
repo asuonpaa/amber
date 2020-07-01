@@ -24,6 +24,7 @@ set(AMBER_SOURCES
     executor.cc
     float16_helper.cc
     format.cc
+    image.cc
     parser.cc
     pipeline.cc
     pipeline_data.cc

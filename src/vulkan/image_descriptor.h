@@ -27,6 +27,7 @@ namespace vulkan {
 
 class ImageDescriptor : public BufferBackedDescriptor {
  public:
+  // TODO Ari: Take an Image class instead?
   ImageDescriptor(Buffer* buffer,
                   DescriptorType type,
                   Device* device,

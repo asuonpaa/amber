@@ -18,6 +18,7 @@
 #include <cassert>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -263,6 +264,7 @@ bool IsValidSampleCount(uint32_t samples) {
 }  // namespace
 
 Parser::Parser() : amber::Parser(nullptr) {}
+
 Parser::Parser(Delegate* delegate) : amber::Parser(delegate) {}
 
 Parser::~Parser() = default;
@@ -287,6 +289,8 @@ Result Parser::Parse(const std::string& data) {
       r = ParseRepeatableCommand(tok);
     } else if (tok == "BUFFER") {
       r = ParseBuffer();
+    } else if (tok == "BYTE_BUFFER") {
+      r = ParseByteBuffer();
     } else if (tok == "DERIVE_PIPELINE") {
       r = ParseDerivePipelineBlock();
     } else if (tok == "DEVICE_FEATURE") {
@@ -319,26 +323,29 @@ Result Parser::Parse(const std::string& data) {
   }
   script_->SetCommands(std::move(command_list_));
 
-  // Generate any needed color attachments. This is done before
-  // validating in case one of the pipelines specifies the framebuffer size
-  // it needs to be verified against all other pipelines.
-  for (const auto& pipeline : script_->GetPipelines()) {
-    // Add a color attachment if needed
-    if (pipeline->GetColorAttachments().empty()) {
-      auto* buf = script_->GetBuffer(Pipeline::kGeneratedColorBuffer);
-      if (!buf) {
-        auto color_buf = pipeline->GenerateDefaultColorAttachmentBuffer();
-        buf = color_buf.get();
+// TODO Ari: Work on this later
+#if 0
+        // Generate any needed color attachments. This is done before
+        // validating in case one of the pipelines specifies the framebuffer size
+        // it needs to be verified against all other pipelines.
+        for (const auto& pipeline : script_->GetPipelines()) {
+          // Add a color attachment if needed
+          if (pipeline->GetColorAttachments().empty()) {
+            auto* buf = script_->GetBuffer(Pipeline::kGeneratedColorBuffer);
+            if (!buf) {
+              auto color_buf = pipeline->GenerateDefaultColorAttachmentBuffer();
+              buf = color_buf.get();
 
-        Result r = script_->AddBuffer(std::move(color_buf));
-        if (!r.IsSuccess())
-          return r;
-      }
-      Result r = pipeline->AddColorAttachment(buf, 0, 0);
-      if (!r.IsSuccess())
-        return r;
-    }
-  }
+              Result r = script_->AddBuffer(std::move(color_buf));
+              if (!r.IsSuccess())
+                return r;
+            }
+            Result r = pipeline->AddColorAttachment(buf, 0, 0);
+            if (!r.IsSuccess())
+              return r;
+          }
+        }
+#endif
 
   // Validate all the pipelines at the end. This allows us to verify the
   // framebuffer sizes are consistent over pipelines.
@@ -975,7 +982,161 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
 
   auto object_type = token->AsString();
 
-  if (object_type == "BUFFER" || object_type == "BUFFER_ARRAY") {
+  // TODO Ari: This is the new IMAGE object being bound
+  if (object_type == "IMAGE" || object_type == "IMAGE_ARRAY") {
+    // TODO
+    bool is_image_array = object_type == "IMAGE_ARRAY";
+    token = tokenizer_->NextToken();
+    if (!token->IsIdentifier())
+      return Result("missing image name in BIND command");
+
+    auto* image = script_->GetImage(token->AsString());
+    if (!image)
+      return Result("unknown image: " + token->AsString());
+    std::vector<Image*> images = {image};
+
+    if (is_image_array) {
+      // Check for additional image names
+      token = tokenizer_->PeekNextToken();
+      while (token->IsIdentifier() && token->AsString() != "AS" &&
+             token->AsString() != "DESCRIPTOR_SET") {
+        tokenizer_->NextToken();
+        image = script_->GetImage(token->AsString());
+        if (!image)
+          return Result("unknown image: " + token->AsString());
+        images.push_back(image);
+        token = tokenizer_->PeekNextToken();
+      }
+
+      if (images.size() < 2)
+        return Result("expecting multiple image names for IMAGE_ARRAY");
+    }
+
+    // TODO Ari: Use ImagType or BindingType later?
+    BufferType buffer_type = BufferType::kUnknown;
+    token = tokenizer_->NextToken();
+    if (token->IsIdentifier() && token->AsString() == "AS") {
+      token = tokenizer_->NextToken();
+      if (!token->IsIdentifier())
+        return Result("invalid token for IMAGE type");
+
+      Result r = ToBufferType(token->AsString(), &buffer_type);
+      if (!r.IsSuccess())
+        return r;
+
+      if (buffer_type == BufferType::kColor) {
+        token = tokenizer_->NextToken();
+        if (!token->IsIdentifier() || token->AsString() != "LOCATION")
+          return Result("BIND missing LOCATION");
+
+        token = tokenizer_->NextToken();
+        if (!token->IsInteger())
+          return Result("invalid value for BIND LOCATION");
+        auto location = token->AsUint32();
+
+        uint32_t base_mip_level = 0;
+        token = tokenizer_->PeekNextToken();
+        if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
+          tokenizer_->NextToken();
+          token = tokenizer_->NextToken();
+
+          if (!token->IsInteger())
+            return Result("invalid value for BASE_MIP_LEVEL");
+
+          base_mip_level = token->AsUint32();
+
+          if (base_mip_level >= image->GetMipLevels())
+            return Result(
+                "base mip level (now " + token->AsString() +
+                ") needs to be larger than the number of buffer mip maps (" +
+                std::to_string(image->GetMipLevels()) + ")");
+        }
+
+        r = pipeline->AddColorAttachment(image, location, base_mip_level);
+        if (!r.IsSuccess())
+          return r;
+
+      } else if (buffer_type == BufferType::kDepthStencil) {
+        r = pipeline->SetDepthStencilBuffer(image);
+        if (!r.IsSuccess())
+          return r;
+      } else if (buffer_type == BufferType::kCombinedImageSampler) {
+        token = tokenizer_->NextToken();
+        if (!token->IsIdentifier() || token->AsString() != "SAMPLER")
+          return Result("expecting SAMPLER for combined image sampler");
+
+        token = tokenizer_->NextToken();
+        if (!token->IsIdentifier())
+          return Result("missing sampler name in BIND command");
+
+        auto* sampler = script_->GetSampler(token->AsString());
+        if (!sampler)
+          return Result("unknown sampler: " + token->AsString());
+
+        for (auto& img : images)
+          img->SetSampler(sampler);
+      }
+    }
+
+    if (buffer_type == BufferType::kStorageImage ||
+        buffer_type == BufferType::kSampledImage ||
+        buffer_type == BufferType::kCombinedImageSampler) {
+      token = tokenizer_->NextToken();
+
+      // DESCRIPTOR_SET requires a buffer type to have been specified.
+      if (token->IsIdentifier() && token->AsString() == "DESCRIPTOR_SET") {
+        token = tokenizer_->NextToken();
+        if (!token->IsInteger())
+          return Result("invalid value for DESCRIPTOR_SET in BIND command");
+        uint32_t descriptor_set = token->AsUint32();
+
+        token = tokenizer_->NextToken();
+        if (!token->IsIdentifier() || token->AsString() != "BINDING")
+          return Result("missing BINDING for BIND command");
+
+        token = tokenizer_->NextToken();
+        if (!token->IsInteger())
+          return Result("invalid value for BINDING in BIND command");
+
+        auto binding = token->AsUint32();
+        uint32_t base_mip_level = 0;
+
+        token = tokenizer_->PeekNextToken();
+        if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
+          tokenizer_->NextToken();
+          token = tokenizer_->NextToken();
+
+          if (!token->IsInteger())
+            return Result("invalid value for BASE_MIP_LEVEL");
+
+          base_mip_level = token->AsUint32();
+
+          if (base_mip_level >= image->GetMipLevels())
+            return Result("base mip level (now " + token->AsString() +
+                          ") needs to be larger than the number of buffer "
+                          "mip maps (" +
+                          std::to_string(image->GetMipLevels()) + ")");
+        }
+
+        // TODO Ari: Change this later?
+        pipeline->ClearBuffers(descriptor_set, binding);
+        for (auto img : images) {
+          for (auto buf : img->GetBuffers()) {
+            // TODO Ari: Do pipeline->AddImage later? Now just copy the
+            // dimensions and the sampler info to buffer.
+            buf->SetWidth(img->GetWidth());
+            buf->SetHeight(img->GetHeight());
+            buf->SetDepth(img->GetDepth());
+            buf->SetSampler(img->GetSampler());
+            pipeline->AddBuffer(buf, buffer_type, descriptor_set, binding,
+                                base_mip_level, 0);
+          }
+        }
+      } else {
+        return Result("missing DESCRIPTOR_SET for BIND command");
+      }
+    }
+  } else if (object_type == "BUFFER" || object_type == "BUFFER_ARRAY") {
     bool is_buffer_array = object_type == "BUFFER_ARRAY";
     token = tokenizer_->NextToken();
     if (!token->IsIdentifier())
@@ -1015,64 +1176,70 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
       if (!r.IsSuccess())
         return r;
 
-      if (buffer_type == BufferType::kColor) {
-        token = tokenizer_->NextToken();
-        if (!token->IsIdentifier() || token->AsString() != "LOCATION")
-          return Result("BIND missing LOCATION");
+#if 0
+                if (buffer_type == BufferType::kColor) {
+                  token = tokenizer_->NextToken();
+                  if (!token->IsIdentifier() || token->AsString() != "LOCATION")
+                    return Result("BIND missing LOCATION");
 
-        token = tokenizer_->NextToken();
-        if (!token->IsInteger())
-          return Result("invalid value for BIND LOCATION");
-        auto location = token->AsUint32();
+                  token = tokenizer_->NextToken();
+                  if (!token->IsInteger())
+                    return Result("invalid value for BIND LOCATION");
+                  auto location = token->AsUint32();
 
-        uint32_t base_mip_level = 0;
-        token = tokenizer_->PeekNextToken();
-        if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
-          tokenizer_->NextToken();
-          token = tokenizer_->NextToken();
+                  uint32_t base_mip_level = 0;
+                  token = tokenizer_->PeekNextToken();
+                  if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
+                    tokenizer_->NextToken();
+                    token = tokenizer_->NextToken();
 
-          if (!token->IsInteger())
-            return Result("invalid value for BASE_MIP_LEVEL");
+                    if (!token->IsInteger())
+                      return Result("invalid value for BASE_MIP_LEVEL");
 
-          base_mip_level = token->AsUint32();
+                    base_mip_level = token->AsUint32();
 
-          if (base_mip_level >= buffer->GetMipLevels())
-            return Result(
-                "base mip level (now " + token->AsString() +
-                ") needs to be larger than the number of buffer mip maps (" +
-                std::to_string(buffer->GetMipLevels()) + ")");
-        }
+                    if (base_mip_level >= buffer->GetMipLevels())
+                      return Result(
+                          "base mip level (now " + token->AsString() +
+                          ") needs to be larger than the number of buffer mip maps (" +
+                          std::to_string(buffer->GetMipLevels()) + ")");
+                  }
 
-        r = pipeline->AddColorAttachment(buffer, location, base_mip_level);
-        if (!r.IsSuccess())
-          return r;
+                  r = pipeline->AddColorAttachment(buffer, location, base_mip_level);
+                  if (!r.IsSuccess())
+                    return r;
 
-      } else if (buffer_type == BufferType::kDepthStencil) {
-        r = pipeline->SetDepthStencilBuffer(buffer);
-        if (!r.IsSuccess())
-          return r;
+                } else if (buffer_type == BufferType::kDepthStencil) {
+                  r = pipeline->SetDepthStencilBuffer(buffer);
+                  if (!r.IsSuccess())
+                    return r;
 
-      } else if (buffer_type == BufferType::kPushConstant) {
+                } else
+#endif
+
+      if (buffer_type == BufferType::kPushConstant) {
         r = pipeline->SetPushConstantBuffer(buffer);
         if (!r.IsSuccess())
           return r;
-
-      } else if (buffer_type == BufferType::kCombinedImageSampler) {
-        token = tokenizer_->NextToken();
-        if (!token->IsIdentifier() || token->AsString() != "SAMPLER")
-          return Result("expecting SAMPLER for combined image sampler");
-
-        token = tokenizer_->NextToken();
-        if (!token->IsIdentifier())
-          return Result("missing sampler name in BIND command");
-
-        auto* sampler = script_->GetSampler(token->AsString());
-        if (!sampler)
-          return Result("unknown sampler: " + token->AsString());
-
-        for (auto& buf : buffers)
-          buf->SetSampler(sampler);
       }
+#if 0
+                else if (buffer_type == BufferType::kCombinedImageSampler) {
+                  token = tokenizer_->NextToken();
+                  if (!token->IsIdentifier() || token->AsString() != "SAMPLER")
+                    return Result("expecting SAMPLER for combined image sampler");
+
+                  token = tokenizer_->NextToken();
+                  if (!token->IsIdentifier())
+                    return Result("missing sampler name in BIND command");
+
+                  auto* sampler = script_->GetSampler(token->AsString());
+                  if (!sampler)
+                    return Result("unknown sampler: " + token->AsString());
+
+                  for (auto& buf : buffers)
+                    buf->SetSampler(sampler);
+                }
+#endif
     }
 
     // The OpenCL bindings can be typeless which allows for the kUnknown
@@ -1082,9 +1249,11 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         buffer_type == BufferType::kUniform ||
         buffer_type == BufferType::kStorageDynamic ||
         buffer_type == BufferType::kUniformDynamic ||
-        buffer_type == BufferType::kStorageImage ||
+#if 0
+                buffer_type == BufferType::kStorageImage ||
         buffer_type == BufferType::kSampledImage ||
         buffer_type == BufferType::kCombinedImageSampler ||
+#endif
         buffer_type == BufferType::kUniformTexelBuffer ||
         buffer_type == BufferType::kStorageTexelBuffer) {
       // If the buffer type is known, then we proccessed the AS block above
@@ -1109,28 +1278,30 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
           return Result("invalid value for BINDING in BIND command");
 
         auto binding = token->AsUint32();
-        uint32_t base_mip_level = 0;
+#if 0
+                    uint32_t base_mip_level = 0;
 
-        if (buffer_type == BufferType::kStorageImage ||
-            buffer_type == BufferType::kSampledImage ||
-            buffer_type == BufferType::kCombinedImageSampler) {
-          token = tokenizer_->PeekNextToken();
-          if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
-            tokenizer_->NextToken();
-            token = tokenizer_->NextToken();
+                    if (buffer_type == BufferType::kStorageImage ||
+                        buffer_type == BufferType::kSampledImage ||
+                        buffer_type == BufferType::kCombinedImageSampler) {
+                      token = tokenizer_->PeekNextToken();
+                      if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
+                        tokenizer_->NextToken();
+                        token = tokenizer_->NextToken();
 
-            if (!token->IsInteger())
-              return Result("invalid value for BASE_MIP_LEVEL");
+                        if (!token->IsInteger())
+                          return Result("invalid value for BASE_MIP_LEVEL");
 
-            base_mip_level = token->AsUint32();
+                        base_mip_level = token->AsUint32();
 
-            if (base_mip_level >= buffer->GetMipLevels())
-              return Result("base mip level (now " + token->AsString() +
-                            ") needs to be larger than the number of buffer "
-                            "mip maps (" +
-                            std::to_string(buffer->GetMipLevels()) + ")");
-          }
-        }
+                        if (base_mip_level >= buffer->GetMipLevels())
+                          return Result("base mip level (now " + token->AsString() +
+                                        ") needs to be larger than the number of buffer "
+                                        "mip maps (" +
+                                        std::to_string(buffer->GetMipLevels()) + ")");
+                      }
+                    }
+#endif
 
         std::vector<uint32_t> dynamic_offsets(buffers.size(), 0);
         if (buffer_type == BufferType::kUniformDynamic ||
@@ -1158,7 +1329,8 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         pipeline->ClearBuffers(descriptor_set, binding);
         for (size_t i = 0; i < buffers.size(); i++) {
           pipeline->AddBuffer(buffers[i], buffer_type, descriptor_set, binding,
-                              base_mip_level, dynamic_offsets[i]);
+                              0, dynamic_offsets[i]);
+          // base_mip_level, dynamic_offsets[i]);
         }
       } else if (token->IsIdentifier() && token->AsString() == "KERNEL") {
         token = tokenizer_->NextToken();
@@ -1863,6 +2035,89 @@ Result Parser::ParseBuffer() {
   return {};
 }
 
+Result Parser::ParseByteBuffer() {
+  auto token = tokenizer_->NextToken();
+  if (!token->IsIdentifier())
+    return Result("invalid BYTE_BUFFER name provided");
+
+  auto name = token->AsString();
+  if (name == "SIZE_BYTES" || name == "FILL" || name == "IMAGE_FILE" ||
+      name == "BINARY_FILE")
+    return Result("missing BYTE_BUFFER name");
+
+  std::unique_ptr<Buffer> buffer = MakeUnique<Buffer>();
+  // TODO Ari: There must be an easier way
+  // auto type = script_->ParseType("uint8");
+  auto type = script_->ParseType("R8_UINT");
+  std::unique_ptr<Format> fmt = MakeUnique<Format>(type);
+  buffer->SetFormat(fmt.get());
+
+  buffer->SetName(name);
+
+  token = tokenizer_->PeekNextToken();
+  while (token->IsIdentifier()) {
+    // TODO Ari: Move this outside as we need to provide the SIZE_BYTES before
+    // any other commands to know the size.
+    if (token->AsString() == "SIZE_BYTES") {
+      tokenizer_->NextToken();
+
+      // TODO Ari: The parser should probably handle X*Y*Z automatically and
+      // just return an integer.
+      token = tokenizer_->NextToken();
+      if (!token->IsInteger())
+        return Result("expected integer for SIZE_BYTES");
+      uint32_t size_bytes = token->AsUint32();
+
+      token = tokenizer_->PeekNextToken();
+      if (token->IsIdentifier() && token->AsString().at(0) == '*') {
+        tokenizer_->NextToken();
+        std::istringstream f(token->AsString().substr(1));
+        std::string s;
+        while (getline(f, s, '*')) {
+          size_bytes *= std::stoi(s);
+        }
+      }
+
+      buffer->SetSizeInBytes(size_bytes);
+    } else if (token->AsString() == "FILL") {
+      tokenizer_->NextToken();
+
+      Result r =
+          ParseBufferInitializerFill(buffer.get(), buffer->GetSizeInBytes());
+      if (!r.IsSuccess())
+        return r;
+    } else if (token->AsString() == "IMAGE_FILE") {
+      tokenizer_->NextToken();
+      BufferInfo info;
+      token = tokenizer_->NextToken();
+      Result r = delegate_->LoadBufferData(token->AsString(),
+                                           BufferDataFileType::kPng, &info);
+
+      if (!r.IsSuccess())
+        return r;
+
+      std::vector<uint8_t>* data = buffer->ValuePtr();
+
+      data->clear();
+      // data->reserve(info.values.size());
+      for (auto v : info.values) {
+        data->push_back(v.AsUint8());
+      }
+      // TODO Ari: Add other FILE types
+    } else {
+      break;
+    }
+    token = tokenizer_->PeekNextToken();
+  }
+
+  Result r = script_->AddBuffer(std::move(buffer));
+  if (!r.IsSuccess())
+    return r;
+
+  return {};
+}
+
+#if 0
 Result Parser::ParseImage() {
   auto token = tokenizer_->NextToken();
   if (!token->IsIdentifier())
@@ -2009,6 +2264,157 @@ Result Parser::ParseImage() {
 
   return {};
 }
+#else
+Result Parser::ParseImage() {
+  auto token = tokenizer_->NextToken();
+  if (!token->IsIdentifier())
+    return Result("invalid IMAGE name provided");
+
+  auto name = token->AsString();
+  if (name == "DATA_TYPE" || name == "FORMAT")
+    return Result("missing IMAGE name");
+
+  std::unique_ptr<Image> image = MakeUnique<Image>();
+  image->SetName(name);
+  bool width_set = false;
+  bool height_set = false;
+  bool depth_set = false;
+
+  token = tokenizer_->PeekNextToken();
+  while (token->IsIdentifier()) {
+    tokenizer_->NextToken();
+
+    if (token->AsString() == "FORMAT") {
+      token = tokenizer_->NextToken();
+      if (!token->IsIdentifier())
+        return Result("IMAGE FORMAT must be an identifier");
+
+      auto type = script_->ParseType(token->AsString());
+      if (!type)
+        return Result("invalid IMAGE FORMAT");
+
+      auto fmt = MakeUnique<Format>(type);
+      image->SetFormat(fmt.get());
+      script_->RegisterFormat(std::move(fmt));
+    } else if (token->AsString() == "MIP_LEVELS") {
+      token = tokenizer_->NextToken();
+
+      if (!token->IsInteger())
+        return Result("invalid value for MIP_LEVELS");
+
+      image->SetMipLevels(token->AsUint32());
+    } else if (token->AsString() == "DIM_1D") {
+      image->SetImageDimension(ImageDimension::k1D);
+    } else if (token->AsString() == "DIM_2D") {
+      image->SetImageDimension(ImageDimension::k2D);
+    } else if (token->AsString() == "DIM_3D") {
+      image->SetImageDimension(ImageDimension::k3D);
+    } else if (token->AsString() == "WIDTH") {
+      token = tokenizer_->NextToken();
+      if (!token->IsInteger() || token->AsUint32() == 0)
+        return Result("expected positive IMAGE WIDTH");
+
+      image->SetWidth(token->AsUint32());
+      width_set = true;
+    } else if (token->AsString() == "HEIGHT") {
+      token = tokenizer_->NextToken();
+      if (!token->IsInteger() || token->AsUint32() == 0)
+        return Result("expected positive IMAGE HEIGHT");
+
+      image->SetHeight(token->AsUint32());
+      height_set = true;
+    } else if (token->AsString() == "DEPTH") {
+      token = tokenizer_->NextToken();
+      if (!token->IsInteger() || token->AsUint32() == 0)
+        return Result("expected positive IMAGE DEPTH");
+
+      image->SetDepth(token->AsUint32());
+      depth_set = true;
+    } else if (token->AsString() == "SAMPLES") {
+      token = tokenizer_->NextToken();
+      if (!token->IsInteger())
+        return Result("expected integer value for SAMPLES");
+
+      const uint32_t samples = token->AsUint32();
+      if (!IsValidSampleCount(samples))
+        return Result("invalid sample count: " + token->ToOriginalString());
+
+      image->SetSamples(samples);
+    } else if (token->AsString() == "BUFFERS") {
+      token = tokenizer_->PeekNextToken();
+      // TODO Ari: Only works when at the end of the IMAGE command. Add a list
+      // of IMAGE commands and check the token is not any of those.
+      while (token->IsIdentifier()) {
+        tokenizer_->NextToken();
+        Buffer* buf = script_->GetBuffer(token->AsString());
+        if (!buf)
+          return Result("invalid buffer reference for IMAGE: " +
+                        token->AsString());
+        image->AddBuffer(buf);
+        token = tokenizer_->PeekNextToken();
+      }
+      // TODO
+      /*
+      token = tokenizer_->PeekNextToken();
+      while (token->IsIdentifier() && token->AsString() != "AS" &&
+             token->AsString() != "KERNEL" &&
+             token->AsString() != "DESCRIPTOR_SET") {
+          tokenizer_->NextToken();
+          buffer = script_->GetBuffer(token->AsString());
+          if (!buffer)
+              return Result("unknown buffer: " + token->AsString());
+          buffers.push_back(buffer);
+          token = tokenizer_->PeekNextToken();
+      }
+       */
+
+    } else {
+      return Result("unknown IMAGE command provided: " +
+                    token->ToOriginalString());
+    }
+    token = tokenizer_->PeekNextToken();
+  }
+
+  if (image->GetImageDimension() == ImageDimension::k3D && !depth_set)
+    return Result("expected IMAGE DEPTH");
+
+  if ((image->GetImageDimension() == ImageDimension::k3D ||
+       image->GetImageDimension() == ImageDimension::k2D) &&
+      !height_set) {
+    return Result("expected IMAGE HEIGHT");
+  }
+  if (!width_set)
+    return Result("expected IMAGE WIDTH");
+
+  /*
+              const uint32_t size_in_items =
+                      image->GetWidth() * image->GetHeight() *
+     image->GetDepth(); buffer->SetElementCount(size_in_items);
+
+              // Parse initializers.
+              token = tokenizer_->NextToken();
+              if (token->IsIdentifier()) {
+                  if (token->AsString() == "FILL") {
+                      Result r = ParseBufferInitializerFill(buffer.get(),
+     size_in_items); if (!r.IsSuccess()) return r; } else if (token->AsString()
+     == "SERIES_FROM") { Result r = ParseBufferInitializerSeries(buffer.get(),
+     size_in_items); if (!r.IsSuccess()) return r; } else { return
+     Result("unexpected IMAGE token: " + token->AsString());
+                  }
+              } else if (!token->IsEOL() && !token->IsEOS()) {
+                  return Result("unexpected IMAGE token: " +
+     token->ToOriginalString());
+              }
+  */
+
+  Result r = script_->AddImage(std::move(image));
+  if (!r.IsSuccess())
+    return r;
+
+  return {};
+}
+
+#endif
 
 Result Parser::ParseBufferInitializer(Buffer* buffer) {
   auto token = tokenizer_->NextToken();

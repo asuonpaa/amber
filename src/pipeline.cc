@@ -363,9 +363,19 @@ void Pipeline::UpdateFramebufferSizes() {
   }
 }
 
-Result Pipeline::AddColorAttachment(Buffer* buf,
+Result Pipeline::AddColorAttachment(Image* img,
                                     uint32_t location,
                                     uint32_t base_mip_level) {
+  if (img->GetBuffers().size() != 1)
+    return Result(
+        "expecting an image with a single backing buffer when using as color "
+        "attachment");
+
+  // TODO Ari: Not the nicest solution..
+  fb_width_ = img->GetWidth();
+  fb_height_ = img->GetHeight();
+
+  auto buf = img->GetBuffers()[0];
   for (const auto& attachment : color_attachments_) {
     if (attachment.location == location)
       return Result("can not bind two color buffers to the same LOCATION");
@@ -399,7 +409,14 @@ Result Pipeline::GetLocationForColorAttachment(Buffer* buf,
   return Result("Unable to find requested buffer");
 }
 
-Result Pipeline::SetDepthStencilBuffer(Buffer* buf) {
+Result Pipeline::SetDepthStencilBuffer(Image* img) {
+  if (img->GetBuffers().size() != 1)
+    return Result(
+        "expecting an image with a single backing buffer when using as "
+        "depth/stencil attachment");
+
+  auto buf = img->GetBuffers()[0];
+
   if (depth_stencil_buffer_.buffer != nullptr)
     return Result("can only bind one depth/stencil buffer in a PIPELINE");
 
@@ -497,6 +514,7 @@ Pipeline::GenerateDefaultDepthStencilAttachmentBuffer() {
   return buf;
 }
 
+// TODO Ari: Instead return a vector?
 Buffer* Pipeline::GetBufferForBinding(uint32_t descriptor_set,
                                       uint32_t binding) const {
   for (const auto& info : buffers_) {

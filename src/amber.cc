@@ -185,6 +185,7 @@ amber::Result Amber::ExecuteWithShaderData(const amber::Recipe* recipe,
   // Try to perform each extraction, copying the buffer data into |buffer_info|.
   // We do not overwrite |executor_result| if extraction fails.
   for (BufferInfo& buffer_info : opts->extractions) {
+    // TODO Ari: How to properly handle this with the new IMAGE?
     if (buffer_info.is_image_buffer) {
       auto* buffer = script->GetBuffer(buffer_info.buffer_name);
       if (!buffer)
