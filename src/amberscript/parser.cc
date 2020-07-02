@@ -1129,6 +1129,7 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
             buf->SetWidth(img->GetWidth());
             buf->SetHeight(img->GetHeight());
             buf->SetDepth(img->GetDepth());
+            buf->SetImageDimension(img->GetImageDimension());
             buf->SetMipLevels(img->GetMipLevels());
             buf->SetSamples(img->GetSamples());
             buf->SetSampler(img->GetSampler());
