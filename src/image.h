@@ -15,7 +15,10 @@
 #ifndef SRC_IMAGE_H_
 #define SRC_IMAGE_H_
 
-#include "buffer.h"
+#include <cstdint>
+#include <string>
+
+#include "src/format.h"
 
 namespace amber {
 
