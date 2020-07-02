@@ -428,6 +428,7 @@ class Pipeline {
   PipelineData pipeline_data_;
   uint32_t fb_width_ = 250;
   uint32_t fb_height_ = 250;
+  bool fb_size_provided_ = false;
 
   std::vector<ArgSetInfo> set_arg_values_;
   std::vector<std::unique_ptr<Buffer>> opencl_pod_buffers_;

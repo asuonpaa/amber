@@ -361,6 +361,8 @@ void Pipeline::UpdateFramebufferSizes() {
     depth_stencil_buffer_.buffer->SetHeight(fb_height_);
     depth_stencil_buffer_.buffer->SetElementCount(size);
   }
+
+  fb_size_provided_ = true;
 }
 
 Result Pipeline::AddColorAttachment(Image* img,
@@ -372,8 +374,10 @@ Result Pipeline::AddColorAttachment(Image* img,
         "attachment");
 
   // TODO Ari: Not the nicest solution..
-  fb_width_ = img->GetWidth();
-  fb_height_ = img->GetHeight();
+  if (!fb_size_provided_) {
+    fb_width_ = img->GetWidth();
+    fb_height_ = img->GetHeight();
+  }
 
   auto buf = img->GetBuffers()[0];
   for (const auto& attachment : color_attachments_) {
