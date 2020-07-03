@@ -55,7 +55,8 @@ class Device {
 
   /// Returns true if |format| and the |buffer|s buffer type combination is
   /// supported by the physical device.
-  bool IsFormatSupportedByPhysicalDevice(const Format& format, BufferType type);
+  bool IsFormatSupportedByPhysicalDevice(const Format& format,
+                                         BindingType type);
 
   VkDevice GetVkDevice() const { return device_; }
   VkQueue GetVkQueue() const { return queue_; }

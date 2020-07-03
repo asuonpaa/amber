@@ -139,6 +139,11 @@ BufferCommand::BufferCommand(BufferType type, Pipeline* pipeline)
 
 BufferCommand::~BufferCommand() = default;
 
+ImageCommand::ImageCommand(ImageType type, Pipeline* pipeline)
+    : BindableResourceCommand(Type::kImage, pipeline), image_type_(type) {}
+
+ImageCommand::~ImageCommand() = default;
+
 SamplerCommand::SamplerCommand(Pipeline* pipeline)
     : BindableResourceCommand(Type::kSampler, pipeline) {}
 

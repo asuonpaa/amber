@@ -941,32 +941,32 @@ Result Parser::ParsePipelineFramebufferSize(Pipeline* pipeline) {
   return ValidateEndOfStatement("FRAMEBUFFER_SIZE command");
 }
 
-Result Parser::ToBufferType(const std::string& name, BufferType* type) {
+Result Parser::ToBindingType(const std::string& name, BindingType* type) {
   assert(type);
   if (name == "color")
-    *type = BufferType::kColor;
+    *type = BindingType::kColor;
   else if (name == "depth_stencil")
-    *type = BufferType::kDepthStencil;
+    *type = BindingType::kDepthStencil;
   else if (name == "push_constant")
-    *type = BufferType::kPushConstant;
+    *type = BindingType::kPushConstant;
   else if (name == "uniform")
-    *type = BufferType::kUniform;
+    *type = BindingType::kUniform;
   else if (name == "uniform_dynamic")
-    *type = BufferType::kUniformDynamic;
+    *type = BindingType::kUniformDynamic;
   else if (name == "storage")
-    *type = BufferType::kStorage;
+    *type = BindingType::kStorage;
   else if (name == "storage_dynamic")
-    *type = BufferType::kStorageDynamic;
+    *type = BindingType::kStorageDynamic;
   else if (name == "storage_image")
-    *type = BufferType::kStorageImage;
+    *type = BindingType::kStorageImage;
   else if (name == "sampled_image")
-    *type = BufferType::kSampledImage;
+    *type = BindingType::kSampledImage;
   else if (name == "combined_image_sampler")
-    *type = BufferType::kCombinedImageSampler;
+    *type = BindingType::kCombinedImageSampler;
   else if (name == "uniform_texel_buffer")
-    *type = BufferType::kUniformTexelBuffer;
+    *type = BindingType::kUniformTexelBuffer;
   else if (name == "storage_texel_buffer")
-    *type = BufferType::kStorageTexelBuffer;
+    *type = BindingType::kStorageTexelBuffer;
   else
     return Result("unknown buffer_type: " + name);
 
@@ -1015,18 +1015,18 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
     }
 
     // TODO Ari: Use ImagType or BindingType later?
-    BufferType buffer_type = BufferType::kUnknown;
+    BindingType image_type = BindingType::kUnknown;
     token = tokenizer_->NextToken();
     if (token->IsIdentifier() && token->AsString() == "AS") {
       token = tokenizer_->NextToken();
       if (!token->IsIdentifier())
         return Result("invalid token for IMAGE type");
 
-      Result r = ToBufferType(token->AsString(), &buffer_type);
+      Result r = ToBindingType(token->AsString(), &image_type);
       if (!r.IsSuccess())
         return r;
 
-      if (buffer_type == BufferType::kColor) {
+      if (image_type == BindingType::kColor) {
         token = tokenizer_->NextToken();
         if (!token->IsIdentifier() || token->AsString() != "LOCATION")
           return Result("BIND missing LOCATION");
@@ -1058,11 +1058,11 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         if (!r.IsSuccess())
           return r;
 
-      } else if (buffer_type == BufferType::kDepthStencil) {
+      } else if (image_type == BindingType::kDepthStencil) {
         r = pipeline->SetDepthStencilBuffer(image);
         if (!r.IsSuccess())
           return r;
-      } else if (buffer_type == BufferType::kCombinedImageSampler) {
+      } else if (image_type == BindingType::kCombinedImageSampler) {
         token = tokenizer_->NextToken();
         if (!token->IsIdentifier() || token->AsString() != "SAMPLER")
           return Result("expecting SAMPLER for combined image sampler");
@@ -1080,9 +1080,9 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
       }
     }
 
-    if (buffer_type == BufferType::kStorageImage ||
-        buffer_type == BufferType::kSampledImage ||
-        buffer_type == BufferType::kCombinedImageSampler) {
+    if (image_type == BindingType::kStorageImage ||
+        image_type == BindingType::kSampledImage ||
+        image_type == BindingType::kCombinedImageSampler) {
       token = tokenizer_->NextToken();
 
       // DESCRIPTOR_SET requires a buffer type to have been specified.
@@ -1120,9 +1120,9 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
                           std::to_string(image->GetMipLevels()) + ")");
         }
 
-        // TODO Ari: Change this later?
-        pipeline->ClearBuffers(descriptor_set, binding);
+        pipeline->ClearBindings(descriptor_set, binding);
         for (auto img : images) {
+#if 0
           for (auto buf : img->GetBuffers()) {
             // TODO Ari: Do pipeline->AddImage later? Now just copy the
             // dimensions and the sampler info to buffer.
@@ -1136,6 +1136,10 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
             pipeline->AddBuffer(buf, buffer_type, descriptor_set, binding,
                                 base_mip_level, 0);
           }
+#else
+          pipeline->AddImage(img, image_type, descriptor_set, binding,
+                             base_mip_level);
+#endif
         }
       } else {
         return Result("missing DESCRIPTOR_SET for BIND command");
@@ -1170,18 +1174,18 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         return Result("expecting multiple buffer names for BUFFER_ARRAY");
     }
 
-    BufferType buffer_type = BufferType::kUnknown;
+    BindingType buffer_type = BindingType::kUnknown;
     token = tokenizer_->NextToken();
     if (token->IsIdentifier() && token->AsString() == "AS") {
       token = tokenizer_->NextToken();
       if (!token->IsIdentifier())
         return Result("invalid token for BUFFER type");
 
-      Result r = ToBufferType(token->AsString(), &buffer_type);
+      Result r = ToBindingType(token->AsString(), &buffer_type);
       if (!r.IsSuccess())
         return r;
 
-      if (buffer_type == BufferType::kColor) {
+      if (buffer_type == BindingType::kColor) {
         token = tokenizer_->NextToken();
         if (!token->IsIdentifier() || token->AsString() != "LOCATION")
           return Result("BIND missing LOCATION");
@@ -1217,7 +1221,7 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         if (!r.IsSuccess())
           return r;
 
-      } else if (buffer_type == BufferType::kDepthStencil) {
+      } else if (buffer_type == BindingType::kDepthStencil) {
         Image* image = script_->GetImage(buffer->GetName() + kImageAutogenName);
         if (!image)
           return Result("autogenerated image from buffer not found");
@@ -1225,11 +1229,11 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         if (!r.IsSuccess())
           return r;
 
-      } else if (buffer_type == BufferType::kPushConstant) {
+      } else if (buffer_type == BindingType::kPushConstant) {
         r = pipeline->SetPushConstantBuffer(buffer);
         if (!r.IsSuccess())
           return r;
-      } else if (buffer_type == BufferType::kCombinedImageSampler) {
+      } else if (buffer_type == BindingType::kCombinedImageSampler) {
         token = tokenizer_->NextToken();
         if (!token->IsIdentifier() || token->AsString() != "SAMPLER")
           return Result("expecting SAMPLER for combined image sampler");
@@ -1255,20 +1259,20 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
 
     // The OpenCL bindings can be typeless which allows for the kUnknown
     // buffer type.
-    if (buffer_type == BufferType::kUnknown ||
-        buffer_type == BufferType::kStorage ||
-        buffer_type == BufferType::kUniform ||
-        buffer_type == BufferType::kStorageDynamic ||
-        buffer_type == BufferType::kUniformDynamic ||
-        buffer_type == BufferType::kStorageImage ||
-        buffer_type == BufferType::kSampledImage ||
-        buffer_type == BufferType::kCombinedImageSampler ||
-        buffer_type == BufferType::kUniformTexelBuffer ||
-        buffer_type == BufferType::kStorageTexelBuffer) {
+    if (buffer_type == BindingType::kUnknown ||
+        buffer_type == BindingType::kStorage ||
+        buffer_type == BindingType::kUniform ||
+        buffer_type == BindingType::kStorageDynamic ||
+        buffer_type == BindingType::kUniformDynamic ||
+        buffer_type == BindingType::kStorageImage ||
+        buffer_type == BindingType::kSampledImage ||
+        buffer_type == BindingType::kCombinedImageSampler ||
+        buffer_type == BindingType::kUniformTexelBuffer ||
+        buffer_type == BindingType::kStorageTexelBuffer) {
       // If the buffer type is known, then we proccessed the AS block above
       // and have to advance to the next token. Otherwise, we're already on
       // the next token and don't want to advance.
-      if (buffer_type != BufferType::kUnknown)
+      if (buffer_type != BindingType::kUnknown)
         token = tokenizer_->NextToken();
 
       // DESCRIPTOR_SET requires a buffer type to have been specified.
@@ -1290,10 +1294,12 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         // somehow combined.
         auto binding = token->AsUint32();
         uint32_t base_mip_level = 0;
+        bool is_image = false;
 
-        if (buffer_type == BufferType::kStorageImage ||
-            buffer_type == BufferType::kSampledImage ||
-            buffer_type == BufferType::kCombinedImageSampler) {
+        if (buffer_type == BindingType::kStorageImage ||
+            buffer_type == BindingType::kSampledImage ||
+            buffer_type == BindingType::kCombinedImageSampler) {
+          is_image = true;
           token = tokenizer_->PeekNextToken();
           if (token->IsIdentifier() && token->AsString() == "BASE_MIP_LEVEL") {
             tokenizer_->NextToken();
@@ -1313,8 +1319,8 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
         }
 
         std::vector<uint32_t> dynamic_offsets(buffers.size(), 0);
-        if (buffer_type == BufferType::kUniformDynamic ||
-            buffer_type == BufferType::kStorageDynamic) {
+        if (buffer_type == BindingType::kUniformDynamic ||
+            buffer_type == BindingType::kStorageDynamic) {
           token = tokenizer_->NextToken();
           if (!token->IsIdentifier() || token->AsString() != "OFFSET")
             return Result("expecting an OFFSET for dynamic buffer type");
@@ -1335,10 +1341,22 @@ Result Parser::ParsePipelineBind(Pipeline* pipeline) {
           }
         }
 
-        pipeline->ClearBuffers(descriptor_set, binding);
-        for (size_t i = 0; i < buffers.size(); i++) {
-          pipeline->AddBuffer(buffers[i], buffer_type, descriptor_set, binding,
-                              base_mip_level, dynamic_offsets[i]);
+        pipeline->ClearBindings(descriptor_set, binding);
+        if (is_image) {
+          for (auto buf : buffers) {
+            Image* image =
+                script_->GetImage(buf->GetName() + kImageAutogenName);
+            if (!image)
+              return Result("autogenerated image from buffer not found");
+
+            pipeline->AddImage(image, buffer_type, descriptor_set, binding,
+                               base_mip_level);
+          }
+        } else {
+          for (size_t i = 0; i < buffers.size(); i++) {
+            pipeline->AddBuffer(buffers[i], buffer_type, descriptor_set,
+                                binding, base_mip_level, dynamic_offsets[i]);
+          }
         }
       } else if (token->IsIdentifier() && token->AsString() == "KERNEL") {
         token = tokenizer_->NextToken();
@@ -2373,6 +2391,16 @@ Result Parser::ParseImage() {
           return Result("invalid buffer reference for IMAGE: " +
                         token->AsString());
         image->AddBuffer(buf);
+
+        // TODO Ari: Image descriptor needs to get these directly from the image
+        // and not from the buffer
+        buf->SetImageDimension(image->GetImageDimension());
+        buf->SetWidth(image->GetWidth());
+        buf->SetHeight(image->GetHeight());
+        buf->SetDepth(image->GetDepth());
+        buf->SetSamples(image->GetSamples());
+        buf->SetMipLevels(image->GetMipLevels());
+
         token = tokenizer_->PeekNextToken();
       }
     } else {

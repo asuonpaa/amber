@@ -69,6 +69,7 @@ class Command {
     kProbe,
     kProbeSSBO,
     kBuffer,
+    kImage,
     kRepeat,
     kSampler
   };
@@ -86,6 +87,7 @@ class Command {
   bool IsProbe() const { return command_type_ == Type::kProbe; }
   bool IsProbeSSBO() const { return command_type_ == Type::kProbeSSBO; }
   bool IsBuffer() const { return command_type_ == Type::kBuffer; }
+  bool IsImage() const { return command_type_ == Type::kImage; }
   bool IsClear() const { return command_type_ == Type::kClear; }
   bool IsClearColor() const { return command_type_ == Type::kClearColor; }
   bool IsClearDepth() const { return command_type_ == Type::kClearDepth; }
@@ -484,6 +486,7 @@ class BindableResourceCommand : public PipelineCommand {
   uint32_t binding_num_ = 0;
 };
 
+// TODO Ari: Remove image related data
 /// Command to set the size of a buffer, or update a buffers contents.
 class BufferCommand : public BindableResourceCommand {
  public:
@@ -562,6 +565,39 @@ class BufferCommand : public BindableResourceCommand {
   uint32_t base_mip_level_ = 0;
   uint32_t dynamic_offset_ = 0;
   std::vector<Value> values_;
+};
+
+class ImageCommand : public BindableResourceCommand {
+ public:
+  enum class ImageType { kStorageImage, kSampledImage, kCombinedImageSampler };
+
+  ImageCommand(ImageType type, Pipeline* pipeline);
+  ~ImageCommand() override;
+
+  bool IsStorageImage() const {
+    return image_type_ == ImageType::kStorageImage;
+  }
+  bool IsSampledImage() const {
+    return image_type_ == ImageType::kSampledImage;
+  }
+  bool IsCombinedImageSampler() const {
+    return image_type_ == ImageType::kCombinedImageSampler;
+  }
+
+  void SetBaseMipLevel(uint32_t base_mip_level) {
+    base_mip_level_ = base_mip_level;
+  }
+  uint32_t GetBaseMipLevel() const { return base_mip_level_; }
+
+  void SetImage(Image* image) { image_ = image; }
+  Image* GetImage() const { return image_; }
+
+  std::string ToString() const override { return "ImageCommand"; }
+
+ private:
+  Image* image_ = nullptr;
+  ImageType image_type_;
+  uint32_t base_mip_level_ = 0;
 };
 
 /// Command for setting sampler parameters and binding.

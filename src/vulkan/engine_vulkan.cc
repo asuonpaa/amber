@@ -224,25 +224,26 @@ Result EngineVulkan::CreatePipeline(amber::Pipeline* pipeline) {
       return r;
   }
 
+  // TODO Ari: Remove image related code
   for (const auto& buf_info : pipeline->GetBuffers()) {
     auto type = BufferCommand::BufferType::kSSBO;
-    if (buf_info.type == BufferType::kStorageImage) {
+    if (buf_info.type == BindingType::kStorageImage) {
       type = BufferCommand::BufferType::kStorageImage;
-    } else if (buf_info.type == BufferType::kSampledImage) {
+    } else if (buf_info.type == BindingType::kSampledImage) {
       type = BufferCommand::BufferType::kSampledImage;
-    } else if (buf_info.type == BufferType::kCombinedImageSampler) {
+    } else if (buf_info.type == BindingType::kCombinedImageSampler) {
       type = BufferCommand::BufferType::kCombinedImageSampler;
-    } else if (buf_info.type == BufferType::kUniformTexelBuffer) {
+    } else if (buf_info.type == BindingType::kUniformTexelBuffer) {
       type = BufferCommand::BufferType::kUniformTexelBuffer;
-    } else if (buf_info.type == BufferType::kStorageTexelBuffer) {
+    } else if (buf_info.type == BindingType::kStorageTexelBuffer) {
       type = BufferCommand::BufferType::kStorageTexelBuffer;
-    } else if (buf_info.type == BufferType::kUniform) {
+    } else if (buf_info.type == BindingType::kUniform) {
       type = BufferCommand::BufferType::kUniform;
-    } else if (buf_info.type == BufferType::kUniformDynamic) {
+    } else if (buf_info.type == BindingType::kUniformDynamic) {
       type = BufferCommand::BufferType::kUniformDynamic;
-    } else if (buf_info.type == BufferType::kStorageDynamic) {
+    } else if (buf_info.type == BindingType::kStorageDynamic) {
       type = BufferCommand::BufferType::kSSBODynamic;
-    } else if (buf_info.type != BufferType::kStorage) {
+    } else if (buf_info.type != BindingType::kStorage) {
       return Result("Vulkan: CreatePipeline - unknown buffer type: " +
                     std::to_string(static_cast<uint32_t>(buf_info.type)));
     }
@@ -261,6 +262,37 @@ Result EngineVulkan::CreatePipeline(amber::Pipeline* pipeline) {
     }
 
     r = info.vk_pipeline->AddBufferDescriptor(cmd.get());
+    if (!r.IsSuccess())
+      return r;
+  }
+
+  for (const auto& image_info : pipeline->GetImages()) {
+    auto type = ImageCommand::ImageType::kStorageImage;
+    if (image_info.type == BindingType::kSampledImage) {
+      type = ImageCommand::ImageType::kSampledImage;
+    } else if (image_info.type == BindingType::kCombinedImageSampler) {
+      type = ImageCommand::ImageType::kCombinedImageSampler;
+    } else if (image_info.type != BindingType::kStorageImage) {
+      return Result("Vulkan: CreatePipeline - unknown image type: " +
+                    std::to_string(static_cast<uint32_t>(image_info.type)));
+    }
+
+    auto cmd = MakeUnique<ImageCommand>(type, pipeline);
+    cmd->SetDescriptorSet(image_info.descriptor_set);
+    cmd->SetBinding(image_info.binding);
+    cmd->SetBaseMipLevel(image_info.base_mip_level);
+    cmd->SetImage(image_info.image);
+
+    // TODO Ari: Do this with all the buffers?
+#if 0
+        if (cmd->GetValues().empty()) {
+            cmd->GetBuffer()->SetSizeInElements(cmd->GetBuffer()->ElementCount());
+        } else {
+            cmd->GetBuffer()->SetDataWithOffset(cmd->GetValues(), cmd->GetOffset());
+        }
+#endif
+
+    r = info.vk_pipeline->AddImageDescriptor(cmd.get());
     if (!r.IsSuccess())
       return r;
   }

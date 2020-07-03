@@ -180,7 +180,7 @@ class Pipeline {
   ///
   /// The BufferInfo will have either (descriptor_set, binding) or location
   /// attached.
-  // TODO Ari: Rename to BindingInfo and support both buffers and images??
+  // TODO Ari: Remove image related data
   struct BufferInfo {
     BufferInfo() = default;
     explicit BufferInfo(Buffer* buf) : buffer(buf) {}
@@ -193,8 +193,21 @@ class Pipeline {
     uint32_t dynamic_offset = 0;
     std::string arg_name = "";
     uint32_t arg_no = 0;
-    BufferType type = BufferType::kUnknown;
+    BindingType type = BindingType::kUnknown;
     InputRate input_rate = InputRate::kVertex;
+  };
+
+  /// Information on an image attached to the pipeline.
+  struct ImageInfo {
+    ImageInfo() = default;
+    explicit ImageInfo(Image* img) : image(img) {}
+
+    Image* image = nullptr;
+    uint32_t descriptor_set = 0;
+    uint32_t binding = 0;
+    uint32_t location = 0;
+    uint32_t base_mip_level = 0;
+    BindingType type = BindingType::kUnknown;
   };
 
   /// Information on a sampler attached to the pipeline.
@@ -319,23 +332,33 @@ class Pipeline {
   /// buffer bound.
   Buffer* GetIndexBuffer() const { return index_buffer_; }
 
+  // TODO Ari: Remove image related data from this function
   /// Adds |buf| of |type| to the pipeline at the given |descriptor_set|,
   /// |binding|, |base_mip_level|, and |dynamic_offset|.
   void AddBuffer(Buffer* buf,
-                 BufferType type,
+                 BindingType type,
                  uint32_t descriptor_set,
                  uint32_t binding,
                  uint32_t base_mip_level,
                  uint32_t dynamic_offset);
   /// Adds |buf| to the pipeline at the given |arg_name|.
-  void AddBuffer(Buffer* buf, BufferType type, const std::string& arg_name);
+  void AddBuffer(Buffer* buf, BindingType type, const std::string& arg_name);
   /// Adds |buf| to the pipeline at the given |arg_no|.
-  void AddBuffer(Buffer* buf, BufferType type, uint32_t arg_no);
+  void AddBuffer(Buffer* buf, BindingType type, uint32_t arg_no);
   /// Returns information on all buffers in this pipeline.
   const std::vector<BufferInfo>& GetBuffers() const { return buffers_; }
-  // TODO Ari: Clear both buffer and image bindings?
-  /// Clears all buffer bindings for given |descriptor_set| and |binding|.
-  void ClearBuffers(uint32_t descriptor_set, uint32_t binding);
+  /// Adds |img| of |type| to the pipeline at the given |descriptor_set|,
+  /// |binding|, and |base_mip_level|
+  void AddImage(Image* img,
+                BindingType type,
+                uint32_t descriptor_set,
+                uint32_t binding,
+                uint32_t base_mip_level);
+  /// Returns information on all images in this pipeline.
+  const std::vector<ImageInfo>& GetImages() const { return images_; }
+  /// Clears all buffer and image bindings for given |descriptor_set| and
+  /// |binding|.
+  void ClearBindings(uint32_t descriptor_set, uint32_t binding);
 
   /// Adds |sampler| to the pipeline at the given |descriptor_set| and
   /// |binding|.
@@ -419,6 +442,7 @@ class Pipeline {
   std::vector<BufferInfo> color_attachments_;
   std::vector<BufferInfo> vertex_buffers_;
   std::vector<BufferInfo> buffers_;
+  std::vector<ImageInfo> images_;
   std::vector<std::unique_ptr<type::Type>> types_;
   std::vector<SamplerInfo> samplers_;
   std::vector<std::unique_ptr<Format>> formats_;

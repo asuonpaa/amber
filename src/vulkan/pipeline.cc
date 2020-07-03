@@ -273,6 +273,7 @@ Result Pipeline::GetDescriptorSlot(uint32_t desc_set,
   return {};
 }
 
+// TODO Ari: Remove image related code
 Result Pipeline::AddBufferDescriptor(const BufferCommand* cmd) {
   if (cmd == nullptr)
     return Result("Pipeline::AddBufferDescriptor BufferCommand is nullptr");
@@ -319,6 +320,8 @@ Result Pipeline::AddBufferDescriptor(const BufferCommand* cmd) {
 
   if (desc == nullptr) {
     if (is_image) {
+      assert(0 && "Shouldn't happen anymore");
+
       auto image_desc = MakeUnique<ImageDescriptor>(
           cmd->GetBuffer(), desc_type, device_, cmd->GetBaseMipLevel(),
           cmd->GetDescriptorSet(), cmd->GetBinding());
@@ -356,6 +359,53 @@ Result Pipeline::AddBufferDescriptor(const BufferCommand* cmd) {
         "Vulkan::AddBufferDescriptor BufferCommand for UBO uses wrong "
         "descriptor set "
         "and binding");
+  }
+
+  return {};
+}
+
+Result Pipeline::AddImageDescriptor(const ImageCommand* cmd) {
+  if (cmd == nullptr)
+    return Result("Pipeline::AddImageDescriptor ImageCommand is nullptr");
+  if (!cmd->IsStorageImage() && !cmd->IsSampledImage() &&
+      !cmd->IsCombinedImageSampler()) {
+    return Result("Pipeline::AddImageDescriptor not supported image type");
+  }
+
+  Descriptor* desc;
+  Result r =
+      GetDescriptorSlot(cmd->GetDescriptorSet(), cmd->GetBinding(), &desc);
+  if (!r.IsSuccess())
+    return r;
+
+  auto& descriptors = descriptor_set_info_[cmd->GetDescriptorSet()].descriptors;
+
+  DescriptorType desc_type = DescriptorType::kStorageImage;
+
+  if (cmd->IsSampledImage()) {
+    desc_type = DescriptorType::kSampledImage;
+  } else if (cmd->IsCombinedImageSampler()) {
+    desc_type = DescriptorType::kCombinedImageSampler;
+  }
+
+  if (desc == nullptr) {
+    // TODO Ari: Make ImageDescriptor accept image instead of a single buffer
+    auto image_desc = MakeUnique<ImageDescriptor>(
+        cmd->GetImage()->GetBuffers()[0], desc_type, device_,
+        cmd->GetBaseMipLevel(), cmd->GetDescriptorSet(), cmd->GetBinding());
+    if (cmd->IsSampledImage() || cmd->IsCombinedImageSampler())
+      image_desc->SetAmberSampler(cmd->GetImage()->GetSampler());
+    descriptors.push_back(std::move(image_desc));
+    desc = descriptors.back().get();
+  } else {
+    if (desc->GetDescriptorType() != desc_type) {
+      return Result(
+          "Descriptors bound to the same binding needs to have matching "
+          "descriptor types");
+    }
+    // TODO Ari: Should be an AddAmberImage function?
+    desc->AsBufferBackedDescriptor()->AddAmberBuffer(
+        cmd->GetImage()->GetBuffers()[0]);
   }
 
   return {};

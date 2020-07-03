@@ -596,7 +596,7 @@ Result Device::Initialize(
 }
 
 bool Device::IsFormatSupportedByPhysicalDevice(const Format& format,
-                                               BufferType type) {
+                                               BindingType type) {
   VkFormat vk_format = GetVkFormat(format);
   VkFormatProperties properties = VkFormatProperties();
   GetPtrs()->vkGetPhysicalDeviceFormatProperties(physical_device_, vk_format,
@@ -605,21 +605,21 @@ bool Device::IsFormatSupportedByPhysicalDevice(const Format& format,
   VkFormatFeatureFlagBits flag = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT;
   bool is_buffer_type_image = false;
   switch (type) {
-    case BufferType::kColor:
-    case BufferType::kStorageImage:
+    case BindingType::kColor:
+    case BindingType::kStorageImage:
       flag = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
       is_buffer_type_image = true;
       break;
-    case BufferType::kDepthStencil:
+    case BindingType::kDepthStencil:
       flag = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
       is_buffer_type_image = true;
       break;
-    case BufferType::kSampledImage:
-    case BufferType::kCombinedImageSampler:
+    case BindingType::kSampledImage:
+    case BindingType::kCombinedImageSampler:
       flag = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
       is_buffer_type_image = true;
       break;
-    case BufferType::kVertex:
+    case BindingType::kVertex:
       flag = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT;
       is_buffer_type_image = false;
       break;

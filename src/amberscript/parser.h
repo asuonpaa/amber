@@ -44,7 +44,7 @@ class Parser : public amber::Parser {
  private:
   std::string make_error(const std::string& err);
   Result ToShaderType(const std::string& str, ShaderType* type);
-  Result ToBufferType(const std::string& str, BufferType* type);
+  Result ToBindingType(const std::string& str, BindingType* type);
   Result ToShaderFormat(const std::string& str, ShaderFormat* fmt);
   Result ToPipelineType(const std::string& str, PipelineType* type);
   Result ValidateEndOfStatement(const std::string& name);

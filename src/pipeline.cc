@@ -71,6 +71,8 @@ std::unique_ptr<Pipeline> Pipeline::Clone() const {
   clone->color_attachments_ = color_attachments_;
   clone->vertex_buffers_ = vertex_buffers_;
   clone->buffers_ = buffers_;
+  clone->images_ = images_;
+  clone->samplers_ = samplers_;
   clone->depth_stencil_buffer_ = depth_stencil_buffer_;
   clone->index_buffer_ = index_buffer_;
   clone->fb_width_ = fb_width_;
@@ -391,7 +393,7 @@ Result Pipeline::AddColorAttachment(Image* img,
 
   auto& info = color_attachments_.back();
   info.location = location;
-  info.type = BufferType::kColor;
+  info.type = BindingType::kColor;
   info.base_mip_level = base_mip_level;
   auto mip0_width = fb_width_ << base_mip_level;
   auto mip0_height = fb_height_ << base_mip_level;
@@ -425,7 +427,7 @@ Result Pipeline::SetDepthStencilBuffer(Image* img) {
     return Result("can only bind one depth/stencil buffer in a PIPELINE");
 
   depth_stencil_buffer_.buffer = buf;
-  depth_stencil_buffer_.type = BufferType::kDepthStencil;
+  depth_stencil_buffer_.type = BindingType::kDepthStencil;
 
   buf->SetWidth(fb_width_);
   buf->SetHeight(fb_height_);
@@ -453,7 +455,7 @@ Result Pipeline::AddVertexBuffer(Buffer* buf,
 
   vertex_buffers_.push_back(BufferInfo{buf});
   vertex_buffers_.back().location = location;
-  vertex_buffers_.back().type = BufferType::kVertex;
+  vertex_buffers_.back().type = BindingType::kVertex;
   vertex_buffers_.back().input_rate = rate;
   return {};
 }
@@ -463,7 +465,7 @@ Result Pipeline::SetPushConstantBuffer(Buffer* buf) {
     return Result("can only bind one push constant buffer in a PIPELINE");
 
   push_constant_buffer_.buffer = buf;
-  push_constant_buffer_.type = BufferType::kPushConstant;
+  push_constant_buffer_.type = BindingType::kPushConstant;
   return {};
 }
 
@@ -480,7 +482,7 @@ Result Pipeline::CreatePushConstantBuffer() {
   buf->SetFormat(fmt.get());
 
   push_constant_buffer_.buffer = buf.get();
-  push_constant_buffer_.type = BufferType::kPushConstant;
+  push_constant_buffer_.type = BindingType::kPushConstant;
 
   formats_.push_back(std::move(fmt));
   types_.push_back(std::move(type));
@@ -518,7 +520,6 @@ Pipeline::GenerateDefaultDepthStencilAttachmentBuffer() {
   return buf;
 }
 
-// TODO Ari: Instead return a vector?
 Buffer* Pipeline::GetBufferForBinding(uint32_t descriptor_set,
                                       uint32_t binding) const {
   for (const auto& info : buffers_) {
@@ -529,7 +530,7 @@ Buffer* Pipeline::GetBufferForBinding(uint32_t descriptor_set,
 }
 
 void Pipeline::AddBuffer(Buffer* buf,
-                         BufferType type,
+                         BindingType type,
                          uint32_t descriptor_set,
                          uint32_t binding,
                          uint32_t base_mip_level,
@@ -545,7 +546,7 @@ void Pipeline::AddBuffer(Buffer* buf,
 }
 
 void Pipeline::AddBuffer(Buffer* buf,
-                         BufferType type,
+                         BindingType type,
                          const std::string& arg_name) {
   // If this buffer binding already exists, overwrite with the new buffer.
   for (auto& info : buffers_) {
@@ -567,7 +568,7 @@ void Pipeline::AddBuffer(Buffer* buf,
   info.dynamic_offset = 0;
 }
 
-void Pipeline::AddBuffer(Buffer* buf, BufferType type, uint32_t arg_no) {
+void Pipeline::AddBuffer(Buffer* buf, BindingType type, uint32_t arg_no) {
   // If this buffer binding already exists, overwrite with the new buffer.
   for (auto& info : buffers_) {
     if (info.arg_no == arg_no) {
@@ -587,7 +588,21 @@ void Pipeline::AddBuffer(Buffer* buf, BufferType type, uint32_t arg_no) {
   info.dynamic_offset = 0;
 }
 
-void Pipeline::ClearBuffers(uint32_t descriptor_set, uint32_t binding) {
+void Pipeline::AddImage(Image* buf,
+                        BindingType type,
+                        uint32_t descriptor_set,
+                        uint32_t binding,
+                        uint32_t base_mip_level) {
+  images_.push_back(ImageInfo{buf});
+
+  auto& info = images_.back();
+  info.descriptor_set = descriptor_set;
+  info.binding = binding;
+  info.type = type;
+  info.base_mip_level = base_mip_level;
+}
+
+void Pipeline::ClearBindings(uint32_t descriptor_set, uint32_t binding) {
   buffers_.erase(
       std::remove_if(buffers_.begin(), buffers_.end(),
                      [descriptor_set, binding](BufferInfo& info) -> bool {
@@ -595,6 +610,13 @@ void Pipeline::ClearBuffers(uint32_t descriptor_set, uint32_t binding) {
                                info.binding == binding);
                      }),
       buffers_.end());
+  images_.erase(
+      std::remove_if(images_.begin(), images_.end(),
+                     [descriptor_set, binding](ImageInfo& info) -> bool {
+                       return (info.descriptor_set == descriptor_set &&
+                               info.binding == binding);
+                     }),
+      images_.end());
 }
 
 void Pipeline::AddSampler(Sampler* sampler,
@@ -705,27 +727,27 @@ Result Pipeline::UpdateOpenCLBufferBindings() {
         if (entry.arg_name == info.arg_name ||
             entry.arg_ordinal == info.arg_no) {
           // Buffer storage class consistency checks.
-          if (info.type == BufferType::kUnknown) {
+          if (info.type == BindingType::kUnknown) {
             // Set the appropriate buffer type.
             switch (entry.kind) {
               case Pipeline::ShaderInfo::DescriptorMapEntry::Kind::UBO:
               case Pipeline::ShaderInfo::DescriptorMapEntry::Kind::POD_UBO:
-                info.type = BufferType::kUniform;
+                info.type = BindingType::kUniform;
                 break;
               case Pipeline::ShaderInfo::DescriptorMapEntry::Kind::SSBO:
               case Pipeline::ShaderInfo::DescriptorMapEntry::Kind::POD:
-                info.type = BufferType::kStorage;
+                info.type = BindingType::kStorage;
                 break;
               case Pipeline::ShaderInfo::DescriptorMapEntry::Kind::RO_IMAGE:
-                info.type = BufferType::kSampledImage;
+                info.type = BindingType::kSampledImage;
                 break;
               case Pipeline::ShaderInfo::DescriptorMapEntry::Kind::WO_IMAGE:
-                info.type = BufferType::kStorageImage;
+                info.type = BindingType::kStorageImage;
                 break;
               default:
                 return Result("Unhandled buffer type for OPENCL-C shader");
             }
-          } else if (info.type == BufferType::kUniform) {
+          } else if (info.type == BindingType::kUniform) {
             if (entry.kind !=
                     Pipeline::ShaderInfo::DescriptorMapEntry::Kind::UBO &&
                 entry.kind !=
@@ -733,7 +755,7 @@ Result Pipeline::UpdateOpenCLBufferBindings() {
               return Result("Buffer " + info.buffer->GetName() +
                             " must be a uniform binding");
             }
-          } else if (info.type == BufferType::kStorage) {
+          } else if (info.type == BindingType::kStorage) {
             if (entry.kind !=
                     Pipeline::ShaderInfo::DescriptorMapEntry::Kind::SSBO &&
                 entry.kind !=
@@ -741,13 +763,13 @@ Result Pipeline::UpdateOpenCLBufferBindings() {
               return Result("Buffer " + info.buffer->GetName() +
                             " must be a storage binding");
             }
-          } else if (info.type == BufferType::kSampledImage) {
+          } else if (info.type == BindingType::kSampledImage) {
             if (entry.kind !=
                 Pipeline::ShaderInfo::DescriptorMapEntry::Kind::RO_IMAGE) {
               return Result("Buffer " + info.buffer->GetName() +
                             " must be a read-only image binding");
             }
-          } else if (info.type == BufferType::kStorageImage) {
+          } else if (info.type == BindingType::kStorageImage) {
             if (entry.kind !=
                 Pipeline::ShaderInfo::DescriptorMapEntry::Kind::WO_IMAGE) {
               return Result("Buffer " + info.buffer->GetName() +
@@ -860,8 +882,8 @@ Result Pipeline::GenerateOpenCLPodBuffers() {
         buffer = opencl_pod_buffers_.back().get();
         auto buffer_type =
             kind == Pipeline::ShaderInfo::DescriptorMapEntry::Kind::POD
-                ? BufferType::kStorage
-                : BufferType::kUniform;
+                ? BindingType::kStorage
+                : BindingType::kUniform;
 
         // Use an 8-bit type because all the data in the descriptor map is
         // byte-based and it simplifies the logic for sizing below.

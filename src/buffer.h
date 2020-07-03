@@ -35,7 +35,7 @@ class Sampler;
 // TODO Ari: The comment is misleading: this is only used when binding. And some
 // of these are moving to a new ImageType.
 /// Types of buffers which can be created.
-enum class BufferType : int8_t {
+enum class BindingType : int8_t {
   /// Unknown buffer type
   kUnknown = -1,
   /// A color buffer.

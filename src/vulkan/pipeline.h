@@ -50,6 +50,7 @@ class Pipeline {
   ComputePipeline* AsCompute();
 
   Result AddBufferDescriptor(const BufferCommand*);
+  Result AddImageDescriptor(const ImageCommand*);
   Result AddSamplerDescriptor(const SamplerCommand*);
 
   /// Add |buffer| data to the push constants at |offset|.
