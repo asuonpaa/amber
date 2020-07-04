@@ -132,13 +132,16 @@ Result Executor::Execute(Engine* engine,
 
 Result Executor::ExecuteCommand(Engine* engine, Command* cmd) {
   if (cmd->IsProbe()) {
-    auto* buffer = cmd->AsProbe()->GetBuffer();
+    auto* image = cmd->AsProbe()->GetImage();
+    // TODO Ari: How to probe images with multiple backing buffers?
+    auto* buffer = image->GetBuffers()[0];
     assert(buffer);
 
     Format* fmt = buffer->GetFormat();
+    auto row_stride = buffer->GetElementStride() * image->GetWidth();
     return verifier_.Probe(cmd->AsProbe(), fmt, buffer->GetElementStride(),
-                           buffer->GetRowStride(), buffer->GetWidth(),
-                           buffer->GetHeight(), buffer->ValuePtr()->data());
+                           row_stride, image->GetWidth(), image->GetHeight(),
+                           buffer->ValuePtr()->data());
   }
   if (cmd->IsProbeSSBO()) {
     auto probe_ssbo = cmd->AsProbeSSBO();

@@ -116,16 +116,18 @@ ComputeCommand::ComputeCommand(Pipeline* pipeline)
 
 ComputeCommand::~ComputeCommand() = default;
 
-Probe::Probe(Type type, Buffer* buffer) : Command(type), buffer_(buffer) {}
+Probe::Probe(Type type, Buffer* buffer, Image* image)
+    : Command(type), buffer_(buffer), image_(image) {}
 
 Probe::~Probe() = default;
 
-ProbeCommand::ProbeCommand(Buffer* buffer) : Probe(Type::kProbe, buffer) {}
+ProbeCommand::ProbeCommand(Image* image)
+    : Probe(Type::kProbe, nullptr, image) {}
 
 ProbeCommand::~ProbeCommand() = default;
 
 ProbeSSBOCommand::ProbeSSBOCommand(Buffer* buffer)
-    : Probe(Type::kProbeSSBO, buffer) {}
+    : Probe(Type::kProbeSSBO, buffer, nullptr) {}
 
 ProbeSSBOCommand::~ProbeSSBOCommand() = default;
 

@@ -293,7 +293,7 @@ class Pipeline {
   /// Sets require full subgroups property.
   Result SetShaderRequireFullSubgroups(const Shader* shader, const bool isSet);
   /// Returns a list of all colour attachments in this pipeline.
-  const std::vector<BufferInfo>& GetColorAttachments() const {
+  const std::vector<ImageInfo>& GetColorAttachments() const {
     return color_attachments_;
   }
   /// Adds |img| as a colour attachment at |location| in the pipeline.
@@ -301,17 +301,17 @@ class Pipeline {
   Result AddColorAttachment(Image* img,
                             uint32_t location,
                             uint32_t base_mip_level);
-  /// Retrieves the location that |buf| is bound to in the pipeline. The
+  /// Retrieves the location that |img| is bound to in the pipeline. The
   /// location will be written to |loc|. An error result will be return if
   /// something goes wrong.
-  Result GetLocationForColorAttachment(Buffer* buf, uint32_t* loc) const;
+  Result GetLocationForColorAttachment(Image* img, uint32_t* loc) const;
 
   /// Sets |img| as the depth/stencil buffer for this pipeline.
   Result SetDepthStencilBuffer(Image* img);
   /// Returns information on the depth/stencil buffer bound to the pipeline. If
   /// no depth buffer is bound the |BufferInfo::buffer| parameter will be
   /// nullptr.
-  const BufferInfo& GetDepthStencilBuffer() const {
+  const ImageInfo& GetDepthStencilBuffer() const {
     return depth_stencil_buffer_;
   }
 
@@ -439,14 +439,14 @@ class Pipeline {
   PipelineType pipeline_type_ = PipelineType::kCompute;
   std::string name_;
   std::vector<ShaderInfo> shaders_;
-  std::vector<BufferInfo> color_attachments_;
+  std::vector<ImageInfo> color_attachments_;
   std::vector<BufferInfo> vertex_buffers_;
   std::vector<BufferInfo> buffers_;
   std::vector<ImageInfo> images_;
   std::vector<std::unique_ptr<type::Type>> types_;
   std::vector<SamplerInfo> samplers_;
   std::vector<std::unique_ptr<Format>> formats_;
-  BufferInfo depth_stencil_buffer_;
+  ImageInfo depth_stencil_buffer_;
   BufferInfo push_constant_buffer_;
   Buffer* index_buffer_ = nullptr;
   PipelineData pipeline_data_;

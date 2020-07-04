@@ -344,23 +344,25 @@ class Probe : public Command {
   ~Probe() override;
 
   Buffer* GetBuffer() const { return buffer_; }
+  Image* GetImage() const { return image_; }
 
   bool HasTolerances() const { return !tolerances_.empty(); }
   void SetTolerances(const std::vector<Tolerance>& t) { tolerances_ = t; }
   const std::vector<Tolerance>& GetTolerances() const { return tolerances_; }
 
  protected:
-  Probe(Type type, Buffer* buffer);
+  Probe(Type type, Buffer* buffer, Image* image);
 
  private:
   Buffer* buffer_;
+  Image* image_;
   std::vector<Tolerance> tolerances_;
 };
 
 /// Command to probe an image buffer.
 class ProbeCommand : public Probe {
  public:
-  explicit ProbeCommand(Buffer* buffer);
+  explicit ProbeCommand(Image* image);
   ~ProbeCommand() override;
 
   void SetWholeWindow() { is_whole_window_ = true; }

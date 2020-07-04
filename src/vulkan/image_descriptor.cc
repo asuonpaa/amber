@@ -19,17 +19,27 @@
 namespace amber {
 namespace vulkan {
 
-ImageDescriptor::ImageDescriptor(Buffer* buffer,
+ImageDescriptor::ImageDescriptor(Image* image,
                                  DescriptorType type,
                                  Device* device,
                                  uint32_t base_mip_level,
                                  uint32_t desc_set,
                                  uint32_t binding)
-    : BufferBackedDescriptor(buffer, type, device, desc_set, binding),
+    : BufferBackedDescriptor(nullptr, type, device, desc_set, binding),
       base_mip_level_(base_mip_level),
-      vulkan_sampler_(device) {}
+      vulkan_sampler_(device) {
+  AddAmberImage(image);
+}
 
 ImageDescriptor::~ImageDescriptor() = default;
+
+void ImageDescriptor::AddAmberImage(amber::Image* image) {
+  amber_images_.push_back(image);
+  // TODO Ari: Should we do this?
+  for (auto buf : image->GetBuffers()) {
+    AddAmberBuffer(buf);
+  }
+}
 
 Result ImageDescriptor::RecordCopyDataToResourceIfNeeded(
     CommandBuffer* command) {
@@ -58,15 +68,18 @@ Result ImageDescriptor::CreateResourceIfNeeded() {
         "only when |transfer_images| is empty");
   }
 
-  transfer_images_.reserve(GetAmberBuffers().size());
+  transfer_images_.reserve(GetAmberImages().size());
 
-  for (const auto& amber_buffer : GetAmberBuffers()) {
-    if (amber_buffer->ValuePtr()->empty())
-      continue;
+  for (const auto& amber_image : GetAmberImages()) {
+    // TODO Ari?
+    /*
+  if (amber_buffer->ValuePtr()->empty())
+    continue;
+     */
 
     // Default to 2D image.
     VkImageType image_type = VK_IMAGE_TYPE_2D;
-    switch (amber_buffer->GetImageDimension()) {
+    switch (amber_image->GetImageDimension()) {
       case ImageDimension::k1D:
         image_type = VK_IMAGE_TYPE_1D;
         break;
@@ -80,7 +93,7 @@ Result ImageDescriptor::CreateResourceIfNeeded() {
         break;
     }
 
-    Format* fmt = amber_buffer->GetFormat();
+    Format* fmt = amber_image->GetFormat();
     VkImageAspectFlags aspect = 0;
     if (fmt->HasDepthComponent() && fmt->HasStencilComponent()) {
       aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -93,10 +106,10 @@ Result ImageDescriptor::CreateResourceIfNeeded() {
     }
 
     transfer_images_.emplace_back(MakeUnique<TransferImage>(
-        device_, *fmt, aspect, image_type, amber_buffer->GetWidth(),
-        amber_buffer->GetHeight(), amber_buffer->GetDepth(),
-        amber_buffer->GetMipLevels(), base_mip_level_, VK_REMAINING_MIP_LEVELS,
-        amber_buffer->GetSamples()));
+        device_, *fmt, aspect, image_type, amber_image->GetWidth(),
+        amber_image->GetHeight(), amber_image->GetDepth(),
+        amber_image->GetMipLevels(), base_mip_level_, VK_REMAINING_MIP_LEVELS,
+        amber_image->GetSamples()));
     VkImageUsageFlags usage =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 

@@ -184,7 +184,7 @@ Result Parser::ProcessRequireBlock(const SectionParser::Section& section) {
       auto fmt = MakeUnique<Format>(type.get());
       script_->GetPipeline(kDefaultPipelineName)
           ->GetColorAttachments()[0]
-          .buffer->SetFormat(fmt.get());
+          .image->SetFormat(fmt.get());
       script_->RegisterFormat(std::move(fmt));
       script_->RegisterType(std::move(type));
 
@@ -202,7 +202,7 @@ Result Parser::ProcessRequireBlock(const SectionParser::Section& section) {
       }
 
       auto* pipeline = script_->GetPipeline(kDefaultPipelineName);
-      if (pipeline->GetDepthStencilBuffer().buffer != nullptr)
+      if (pipeline->GetDepthStencilBuffer().image != nullptr)
         return Result("Only one depthstencil command allowed");
 
       auto fmt = MakeUnique<Format>(type.get());

@@ -146,15 +146,15 @@ Result EngineVulkan::CreatePipeline(amber::Pipeline* pipeline) {
   }
 
   for (const auto& colour_info : pipeline->GetColorAttachments()) {
-    auto fmt = colour_info.buffer->GetFormat();
+    auto fmt = colour_info.image->GetFormat();
     if (!device_->IsFormatSupportedByPhysicalDevice(*fmt, colour_info.type))
       return Result("Vulkan color attachment format is not supported");
   }
 
-  if (pipeline->GetDepthStencilBuffer().buffer) {
+  if (pipeline->GetDepthStencilBuffer().image) {
     const auto& depth_stencil_info = pipeline->GetDepthStencilBuffer();
 
-    auto fmt = depth_stencil_info.buffer->GetFormat();
+    auto fmt = depth_stencil_info.image->GetFormat();
     if (!device_->IsFormatSupportedByPhysicalDevice(*fmt,
                                                     depth_stencil_info.type)) {
       return Result("Vulkan depth attachment format is not supported");

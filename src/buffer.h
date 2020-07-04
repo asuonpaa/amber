@@ -109,6 +109,7 @@ class Buffer {
   /// Returns the number of bytes for one element in the buffer.
   uint32_t GetElementStride() { return format_->SizeInBytes(); }
 
+  // TODO Ari: Doesn't work with images. Get rid of this?
   /// Returns the number of bytes for one row of elements in the buffer.
   uint32_t GetRowStride() { return GetElementStride() * GetWidth(); }
 

@@ -3277,8 +3277,15 @@ Result Parser::ParseExpect() {
   }
 
   size_t line = tokenizer_->GetCurrentLine();
-  auto* buffer = script_->GetBuffer(token->AsString());
-  if (!buffer)
+  // TODO Ari: Here check if it's an image instead.
+  auto* image = script_->GetImage(token->AsString());
+  Buffer* buffer = nullptr;
+  if (!image)
+    buffer = script_->GetBuffer(token->AsString());
+  else
+    buffer = image->GetBuffers()[0];  // TODO Ari: Can this be removed?
+
+  if (!image && !buffer)
     return Result("unknown buffer name for EXPECT command: " +
                   token->AsString());
 
@@ -3388,7 +3395,9 @@ Result Parser::ParseExpect() {
     if (!has_y_val)
       return Result("invalid Y value in EXPECT command");
 
-    auto probe = MakeUnique<ProbeCommand>(buffer);
+    if (!image)
+      image = script_->GetImage(buffer->GetName() + kImageAutogenName);
+    auto probe = MakeUnique<ProbeCommand>(image);
     probe->SetLine(line);
     probe->SetX(x);
     probe->SetY(y);

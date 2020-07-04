@@ -39,12 +39,11 @@ class CommandPool;
 /// Wrapper around a graphics pipeline.
 class GraphicsPipeline : public Pipeline {
  public:
-  GraphicsPipeline(
-      Device* device,
-      const std::vector<amber::Pipeline::BufferInfo>& color_buffers,
-      amber::Pipeline::BufferInfo depth_stencil_buffer,
-      uint32_t fence_timeout_ms,
-      const std::vector<VkPipelineShaderStageCreateInfo>&);
+  GraphicsPipeline(Device* device,
+                   const std::vector<amber::Pipeline::ImageInfo>& color_buffers,
+                   amber::Pipeline::ImageInfo depth_stencil_buffer,
+                   uint32_t fence_timeout_ms,
+                   const std::vector<VkPipelineShaderStageCreateInfo>&);
   ~GraphicsPipeline() override;
 
   Result Initialize(uint32_t width, uint32_t height, CommandPool* pool);
@@ -87,8 +86,8 @@ class GraphicsPipeline : public Pipeline {
   std::unique_ptr<FrameBuffer> frame_;
 
   // color buffers are owned by the amber::Pipeline.
-  std::vector<const amber::Pipeline::BufferInfo*> color_buffers_;
-  amber::Pipeline::BufferInfo depth_stencil_buffer_;
+  std::vector<const amber::Pipeline::ImageInfo*> color_buffers_;
+  amber::Pipeline::ImageInfo depth_stencil_buffer_;
   std::unique_ptr<IndexBuffer> index_buffer_;
 
   uint32_t frame_width_ = 0;

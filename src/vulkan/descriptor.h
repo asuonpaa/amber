@@ -32,6 +32,7 @@ class CommandBuffer;
 class Device;
 class BufferDescriptor;
 class BufferBackedDescriptor;
+class ImageDescriptor;
 class SamplerDescriptor;
 
 enum class DescriptorType : uint8_t {
@@ -66,6 +67,7 @@ class Descriptor {
   virtual std::vector<uint32_t> GetDynamicOffsets() { return {}; }
   virtual BufferDescriptor* AsBufferDescriptor() { return nullptr; }
   virtual BufferBackedDescriptor* AsBufferBackedDescriptor() { return nullptr; }
+  virtual ImageDescriptor* AsImageDescriptor() { return nullptr; }
   virtual SamplerDescriptor* AsSamplerDescriptor() { return nullptr; }
   uint32_t GetDescriptorSet() const { return descriptor_set_; }
   uint32_t GetBinding() const { return binding_; }

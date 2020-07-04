@@ -27,8 +27,7 @@ namespace vulkan {
 
 class ImageDescriptor : public BufferBackedDescriptor {
  public:
-  // TODO Ari: Take an Image class instead?
-  ImageDescriptor(Buffer* buffer,
+  ImageDescriptor(Image* image,
                   DescriptorType type,
                   Device* device,
                   uint32_t base_mip_level,
@@ -42,6 +41,9 @@ class ImageDescriptor : public BufferBackedDescriptor {
   Result RecordCopyDataToHost(CommandBuffer* command) override;
   Result MoveResourceToBufferOutput() override;
   void SetAmberSampler(amber::Sampler* sampler) { amber_sampler_ = sampler; }
+  ImageDescriptor* AsImageDescriptor() override { return this; }
+  void AddAmberImage(Image* image);
+  const std::vector<Image*>& GetAmberImages() const { return amber_images_; }
 
  protected:
   std::vector<Resource*> GetResources() override;
@@ -51,6 +53,7 @@ class ImageDescriptor : public BufferBackedDescriptor {
   std::vector<std::unique_ptr<TransferImage>> transfer_images_;
   amber::Sampler* amber_sampler_ = nullptr;
   amber::vulkan::Sampler vulkan_sampler_;
+  std::vector<Image*> amber_images_;
 };
 
 }  // namespace vulkan

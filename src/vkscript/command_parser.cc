@@ -915,11 +915,11 @@ Result CommandParser::ProcessProbe(bool relative) {
 
   // VkScript has a single generated colour buffer which should always be
   // available.
-  auto* buffer = pipeline_->GetColorAttachments()[0].buffer;
-  if (!buffer)
+  auto* img = pipeline_->GetColorAttachments()[0].image;
+  if (!img)
     return Result("Pipeline missing color buffers, something went wrong.");
 
-  auto cmd = MakeUnique<ProbeCommand>(buffer);
+  auto cmd = MakeUnique<ProbeCommand>(img);
   cmd->SetLine(tokenizer_->GetCurrentLine());
 
   cmd->SetTolerances(current_tolerances_);

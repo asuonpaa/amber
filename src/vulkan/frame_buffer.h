@@ -32,8 +32,8 @@ class FrameBuffer {
  public:
   FrameBuffer(
       Device* device,
-      const std::vector<const amber::Pipeline::BufferInfo*>& color_attachments,
-      amber::Pipeline::BufferInfo depth_stencil_attachment,
+      const std::vector<const amber::Pipeline::ImageInfo*>& color_attachments,
+      amber::Pipeline::ImageInfo depth_stencil_attachment,
       uint32_t width,
       uint32_t height);
   ~FrameBuffer();
@@ -69,8 +69,8 @@ class FrameBuffer {
                          VkPipelineStageFlags depth_stage);
 
   Device* device_ = nullptr;
-  std::vector<const amber::Pipeline::BufferInfo*> color_attachments_;
-  amber::Pipeline::BufferInfo depth_stencil_attachment_;
+  std::vector<const amber::Pipeline::ImageInfo*> color_attachments_;
+  amber::Pipeline::ImageInfo depth_stencil_attachment_;
   VkFramebuffer frame_ = VK_NULL_HANDLE;
   std::vector<std::unique_ptr<TransferImage>> color_images_;
   std::unique_ptr<TransferImage> depth_stencil_image_;

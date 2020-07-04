@@ -322,12 +322,14 @@ Result Pipeline::AddBufferDescriptor(const BufferCommand* cmd) {
     if (is_image) {
       assert(0 && "Shouldn't happen anymore");
 
+      /*
       auto image_desc = MakeUnique<ImageDescriptor>(
           cmd->GetBuffer(), desc_type, device_, cmd->GetBaseMipLevel(),
           cmd->GetDescriptorSet(), cmd->GetBinding());
       if (cmd->IsSampledImage() || cmd->IsCombinedImageSampler())
         image_desc->SetAmberSampler(cmd->GetBuffer()->GetSampler());
       descriptors.push_back(std::move(image_desc));
+       */
     } else {
       auto buffer_desc = MakeUnique<BufferDescriptor>(
           cmd->GetBuffer(), desc_type, device_, cmd->GetDescriptorSet(),
@@ -389,10 +391,9 @@ Result Pipeline::AddImageDescriptor(const ImageCommand* cmd) {
   }
 
   if (desc == nullptr) {
-    // TODO Ari: Make ImageDescriptor accept image instead of a single buffer
     auto image_desc = MakeUnique<ImageDescriptor>(
-        cmd->GetImage()->GetBuffers()[0], desc_type, device_,
-        cmd->GetBaseMipLevel(), cmd->GetDescriptorSet(), cmd->GetBinding());
+        cmd->GetImage(), desc_type, device_, cmd->GetBaseMipLevel(),
+        cmd->GetDescriptorSet(), cmd->GetBinding());
     if (cmd->IsSampledImage() || cmd->IsCombinedImageSampler())
       image_desc->SetAmberSampler(cmd->GetImage()->GetSampler());
     descriptors.push_back(std::move(image_desc));
@@ -403,9 +404,7 @@ Result Pipeline::AddImageDescriptor(const ImageCommand* cmd) {
           "Descriptors bound to the same binding needs to have matching "
           "descriptor types");
     }
-    // TODO Ari: Should be an AddAmberImage function?
-    desc->AsBufferBackedDescriptor()->AddAmberBuffer(
-        cmd->GetImage()->GetBuffers()[0]);
+    desc->AsImageDescriptor()->AddAmberImage(cmd->GetImage());
   }
 
   return {};

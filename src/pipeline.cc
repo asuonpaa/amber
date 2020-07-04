@@ -274,7 +274,10 @@ Result Pipeline::SetShaderType(const Shader* shader, ShaderType type) {
 
 Result Pipeline::Validate() const {
   for (const auto& attachment : color_attachments_) {
-    if (attachment.buffer->ElementCount() !=
+    auto buf = attachment.image->GetBuffers();
+    if (buf.size() != 1)
+      return Result("color attachment should be backed by a single buffer");
+    if (buf[0]->ElementCount() !=
         (fb_width_ << attachment.base_mip_level) *
             (fb_height_ << attachment.base_mip_level)) {
       return Result(
@@ -282,9 +285,17 @@ Result Pipeline::Validate() const {
     }
   }
 
-  if (depth_stencil_buffer_.buffer &&
-      depth_stencil_buffer_.buffer->ElementCount() != fb_width_ * fb_height_) {
-    return Result("shared depth buffer must have same size over all PIPELINES");
+  if (depth_stencil_buffer_.image) {
+    auto buf = depth_stencil_buffer_.image->GetBuffers();
+    // TODO Ari: Later we should support defining depth and stencil in separate
+    // buffers?
+    if (buf.size() != 1)
+      return Result(
+          "depth/stencil attachment should be backed by a single buffer");
+    if (buf[0]->ElementCount() != fb_width_ * fb_height_) {
+      return Result(
+          "shared depth buffer must have same size over all PIPELINES");
+    }
   }
 
   for (auto& buf : GetBuffers()) {
@@ -317,19 +328,19 @@ Result Pipeline::ValidateGraphics() const {
     return Result("graphics pipeline requires a vertex shader");
 
   for (const auto& att : color_attachments_) {
-    auto width = att.buffer->GetWidth();
-    auto height = att.buffer->GetHeight();
-    for (uint32_t level = 1; level < att.buffer->GetMipLevels(); level++) {
+    auto width = att.image->GetWidth();
+    auto height = att.image->GetHeight();
+    for (uint32_t level = 1; level < att.image->GetMipLevels(); level++) {
       width >>= 1;
       if (width == 0)
         return Result("color attachment with " +
-                      std::to_string(att.buffer->GetMipLevels()) +
+                      std::to_string(att.image->GetMipLevels()) +
                       " mip levels would have zero width for level " +
                       std::to_string(level));
       height >>= 1;
       if (height == 0)
         return Result("color attachment with " +
-                      std::to_string(att.buffer->GetMipLevels()) +
+                      std::to_string(att.image->GetMipLevels()) +
                       " mip levels would have zero height for level " +
                       std::to_string(level));
     }
@@ -353,15 +364,17 @@ void Pipeline::UpdateFramebufferSizes() {
   for (auto& attachment : color_attachments_) {
     auto mip0_width = fb_width_ << attachment.base_mip_level;
     auto mip0_height = fb_height_ << attachment.base_mip_level;
-    attachment.buffer->SetWidth(mip0_width);
-    attachment.buffer->SetHeight(mip0_height);
-    attachment.buffer->SetElementCount(mip0_width * mip0_height);
+    attachment.image->SetWidth(mip0_width);
+    attachment.image->SetHeight(mip0_height);
+    for (auto buf : attachment.image->GetBuffers())
+      buf->SetElementCount(mip0_width * mip0_height);
   }
 
-  if (depth_stencil_buffer_.buffer) {
-    depth_stencil_buffer_.buffer->SetWidth(fb_width_);
-    depth_stencil_buffer_.buffer->SetHeight(fb_height_);
-    depth_stencil_buffer_.buffer->SetElementCount(size);
+  if (depth_stencil_buffer_.image) {
+    depth_stencil_buffer_.image->SetWidth(fb_width_);
+    depth_stencil_buffer_.image->SetHeight(fb_height_);
+    for (auto buf : depth_stencil_buffer_.image->GetBuffers())
+      buf->SetElementCount(size);
   }
 
   fb_size_provided_ = true;
@@ -375,21 +388,24 @@ Result Pipeline::AddColorAttachment(Image* img,
         "expecting an image with a single backing buffer when using as color "
         "attachment");
 
-  // TODO Ari: Not the nicest solution..
-  if (!fb_size_provided_) {
+  if (fb_size_provided_) {
+    // Here framebuffer size is defined using FRAMEBUFFER_SIZE.
+    img->SetWidth(fb_width_);
+    img->SetHeight(fb_height_);
+  } else {
+    // Use image dimensions as framebuffer size.
     fb_width_ = img->GetWidth();
     fb_height_ = img->GetHeight();
   }
 
-  auto buf = img->GetBuffers()[0];
   for (const auto& attachment : color_attachments_) {
     if (attachment.location == location)
       return Result("can not bind two color buffers to the same LOCATION");
-    if (attachment.buffer == buf)
+    if (attachment.image == img)
       return Result("color buffer may only be bound to a PIPELINE once");
   }
 
-  color_attachments_.push_back(BufferInfo{buf});
+  color_attachments_.push_back(ImageInfo{img});
 
   auto& info = color_attachments_.back();
   info.location = location;
@@ -397,17 +413,18 @@ Result Pipeline::AddColorAttachment(Image* img,
   info.base_mip_level = base_mip_level;
   auto mip0_width = fb_width_ << base_mip_level;
   auto mip0_height = fb_height_ << base_mip_level;
-  buf->SetWidth(mip0_width);
-  buf->SetHeight(mip0_height);
-  buf->SetElementCount(mip0_width * mip0_height);
+  img->SetWidth(mip0_width);
+  img->SetHeight(mip0_height);
+  for (auto buf : img->GetBuffers())
+    buf->SetElementCount(mip0_width * mip0_height);
 
   return {};
 }
 
-Result Pipeline::GetLocationForColorAttachment(Buffer* buf,
+Result Pipeline::GetLocationForColorAttachment(Image* img,
                                                uint32_t* loc) const {
   for (const auto& info : color_attachments_) {
-    if (info.buffer == buf) {
+    if (info.image == img) {
       *loc = info.location;
       return {};
     }
@@ -421,17 +438,16 @@ Result Pipeline::SetDepthStencilBuffer(Image* img) {
         "expecting an image with a single backing buffer when using as "
         "depth/stencil attachment");
 
-  auto buf = img->GetBuffers()[0];
-
-  if (depth_stencil_buffer_.buffer != nullptr)
+  if (depth_stencil_buffer_.image != nullptr)
     return Result("can only bind one depth/stencil buffer in a PIPELINE");
 
-  depth_stencil_buffer_.buffer = buf;
+  depth_stencil_buffer_.image = img;
   depth_stencil_buffer_.type = BindingType::kDepthStencil;
 
-  buf->SetWidth(fb_width_);
-  buf->SetHeight(fb_height_);
-  buf->SetElementCount(fb_width_ * fb_height_);
+  img->SetWidth(fb_width_);
+  img->SetHeight(fb_height_);
+  for (auto buf : img->GetBuffers())
+    buf->SetElementCount(fb_width_ * fb_height_);
   return {};
 }
 

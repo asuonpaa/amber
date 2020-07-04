@@ -28,7 +28,8 @@ BufferBackedDescriptor::BufferBackedDescriptor(Buffer* buffer,
                                                uint32_t desc_set,
                                                uint32_t binding)
     : Descriptor(type, device, desc_set, binding) {
-  AddAmberBuffer(buffer);
+  if (buffer)
+    AddAmberBuffer(buffer);
 }
 
 BufferBackedDescriptor::~BufferBackedDescriptor() = default;
