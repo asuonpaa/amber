@@ -120,6 +120,7 @@ class ConfigHelperVulkan : public ConfigHelperImpl {
   VkPhysicalDevice8BitStorageFeaturesKHR storage_8bit_feature_;
   VkPhysicalDevice16BitStorageFeaturesKHR storage_16bit_feature_;
   VkPhysicalDeviceSubgroupSizeControlFeaturesEXT subgroup_size_control_feature_;
+  VkPhysicalDeviceBufferDeviceAddressFeatures buffer_device_address_features_;
 };
 
 }  // namespace sample

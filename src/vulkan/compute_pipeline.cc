@@ -17,8 +17,35 @@
 #include "src/vulkan/command_pool.h"
 #include "src/vulkan/device.h"
 
+#include <chrono>
+#include <iostream>
+
 namespace amber {
 namespace vulkan {
+
+
+// simulation of Windows GetTickCount()
+unsigned long long
+GetTickCount()
+{
+  using namespace std::chrono;
+  return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+// Clock built upon Windows GetTickCount()
+struct TickCountClock
+{
+  typedef unsigned long long                       rep;
+  typedef std::milli                               period;
+  typedef std::chrono::duration<rep, period>       duration;
+  typedef std::chrono::time_point<TickCountClock>  time_point;
+  static const bool is_steady =                    true;
+
+  static time_point now() noexcept
+  {
+    return time_point(duration(GetTickCount()));
+  }
+};
 
 ComputePipeline::ComputePipeline(
     Device* device,
@@ -55,11 +82,18 @@ Result ComputePipeline::CreateVkComputePipeline(
   pipeline_info.stage = shader_stage_info[0];
   pipeline_info.layout = pipeline_layout;
 
+  // TODO Ari
+  auto t0 = TickCountClock::now();
+
+
   if (device_->GetPtrs()->vkCreateComputePipelines(
           device_->GetVkDevice(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
           pipeline) != VK_SUCCESS) {
     return Result("Vulkan::Calling vkCreateComputePipelines Fail");
   }
+
+  auto t1 = TickCountClock::now();
+  std::cout << (t1-t0).count() << "ms\n";
 
   return {};
 }

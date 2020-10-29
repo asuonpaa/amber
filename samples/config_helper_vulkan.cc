@@ -643,6 +643,7 @@ ConfigHelperVulkan::ConfigHelperVulkan()
       float16_int8_feature_(VkPhysicalDeviceFloat16Int8FeaturesKHR()),
       storage_8bit_feature_(VkPhysicalDevice8BitStorageFeaturesKHR()),
       storage_16bit_feature_(VkPhysicalDevice16BitStorageFeaturesKHR()),
+      buffer_device_address_features_(VkPhysicalDeviceBufferDeviceAddressFeatures()),
       subgroup_size_control_feature_(
           VkPhysicalDeviceSubgroupSizeControlFeaturesEXT()) {}
 
@@ -965,6 +966,12 @@ amber::Result ConfigHelperVulkan::CreateDeviceWithFeatures2(
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_FEATURES_EXT;
   subgroup_size_control_feature_.pNext = nullptr;
 
+  // TODO Ari
+  buffer_device_address_features_.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+  buffer_device_address_features_.pNext = nullptr;
+  buffer_device_address_features_.bufferDeviceAddress = VK_TRUE;
+
+
   void** next_ptr = &variable_pointers_feature_.pNext;
 
   if (supports_shader_float16_int8_) {
@@ -985,6 +992,13 @@ amber::Result ConfigHelperVulkan::CreateDeviceWithFeatures2(
   if (supports_subgroup_size_control_) {
     *next_ptr = &subgroup_size_control_feature_;
     next_ptr = &subgroup_size_control_feature_.pNext;
+  }
+
+  // TODO Ari: Hacked here for now
+  {
+    *next_ptr = &buffer_device_address_features_;
+    next_ptr = &buffer_device_address_features_.pNext;
+
   }
 
   available_features2_.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
